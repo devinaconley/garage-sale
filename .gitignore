@@ -1,0 +1,5 @@
+# .gitignore
+
+cache/
+out/
+.env
