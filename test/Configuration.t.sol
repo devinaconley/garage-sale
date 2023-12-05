@@ -92,16 +92,28 @@ contract ConfigurationTest is Test {
     function test_TokenWhitelist() public {
         address tkn = address(12345);
         vm.expectEmit(address(gs));
-        emit GarageSale.TokenUpdated(tkn, true);
-        gs.setToken(tkn, true);
-        (bool enabled, ) = gs.tokens(tkn);
-        assertEq(enabled, true);
+        emit GarageSale.TokenUpdated(tkn, 1);
+        gs.setToken(tkn, 1);
+        assertEq(uint16(gs.tokens(tkn)), uint16(GarageSale.TokenType.ERC721));
+    }
+
+    function test_TokenWhitelist1155() public {
+        address tkn = address(1155);
+        vm.expectEmit(address(gs));
+        emit GarageSale.TokenUpdated(tkn, 2);
+        gs.setToken(tkn, 2);
+        assertEq(uint16(gs.tokens(tkn)), uint16(GarageSale.TokenType.ERC1155));
     }
 
     function test_TokenUnauthorized() public {
         vm.expectRevert("sender is not controller");
         vm.prank(alice);
-        gs.setToken(address(333), false);
+        gs.setToken(address(333), 1);
+    }
+
+    function test_TokenTypeInvalid() public {
+        vm.expectRevert("token type is invalid");
+        gs.setToken(address(0xabcde), 3);
     }
 
     function test_Controller() public {

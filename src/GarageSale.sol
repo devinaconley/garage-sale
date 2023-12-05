@@ -2,21 +2,24 @@
 pragma solidity 0.8.23;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-contract GarageSale is Ownable {
+contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
     // events
     event Sell(address indexed seller, address indexed token, uint256 id);
     event Buy(address indexed buyer, address[] tokens, uint56[] ids);
     event OfferUpdated(uint256 offer);
     event AuctionUpdated(uint256 min, uint256 max, uint256 duration);
     event TakeUpdated(uint256 take);
-    event TokenUpdated(address indexed token, bool enabled);
+    event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
 
     // types
-    struct Token {
-        bool enabled;
-        uint64 count;
+    enum TokenType {
+        Unknown,
+        ERC721,
+        ERC1155
     }
 
     // config
@@ -29,7 +32,7 @@ contract GarageSale is Ownable {
     address public controller;
 
     // data
-    mapping(address => Token) public tokens;
+    mapping(address => TokenType) public tokens;
     uint256 fees;
 
     /**
@@ -52,6 +55,66 @@ contract GarageSale is Ownable {
         );
         _;
     }
+
+    /**
+     * erc165 check for standard interface support
+     * @param interfaceId interface id in question
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure returns (bool) {
+        return
+            interfaceId == type(IERC721Receiver).interfaceId ||
+            interfaceId == type(IERC1155Receiver).interfaceId;
+    }
+
+    // --- sell ---------------------------------------------------------------
+
+    /**
+     * @notice handles receipt and purchase of an ERC721 token
+     * @param operator address of operator
+     * @param from address of token sender
+     * @param tokenId uint256 id of token
+     * @param data other data
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4) {}
+
+    /**
+     * @notice handles receipt and purchase of an ERC1155 token
+     * @param operator address of operator
+     * @param from address of token sender
+     * @param id uint256 class id of token
+     * @param value amount of token
+     * @param data other data
+     */
+    function onERC1155Received(
+        address operator,
+        address from,
+        uint256 id,
+        uint256 value,
+        bytes calldata data
+    ) external returns (bytes4) {}
+
+    /**
+     * @notice handles receipt and purchase of an ERC1155 token batch
+     * @param operator address of operator
+     * @param from address of token sender
+     * @param ids array of token class ids
+     * @param values array of token amounts (order and length must match ids array)
+     * @param data other data
+     */
+    function onERC1155BatchReceived(
+        address operator,
+        address from,
+        uint256[] calldata ids,
+        uint256[] calldata values,
+        bytes calldata data
+    ) external returns (bytes4) {}
 
     // --- configuration ------------------------------------------------------
 
@@ -95,12 +158,14 @@ contract GarageSale is Ownable {
 
     /**
      * @param token address of token to update
-     * @param enabled new status of token
+     * @param type_ new token type
      */
-    function setToken(address token, bool enabled) public onlyController {
+    function setToken(address token, uint16 type_) public onlyController {
+        require(token != address(0), "token is zero address");
+        require(type_ <= uint16(TokenType.ERC1155), "token type is invalid");
         // TODO verify token type
-        tokens[token].enabled = enabled;
-        emit TokenUpdated(token, enabled);
+        tokens[token] = TokenType(type_);
+        emit TokenUpdated(token, type_);
     }
 
     /**
