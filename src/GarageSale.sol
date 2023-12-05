@@ -2,13 +2,32 @@
 pragma solidity 0.8.23;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
+contract GarageSale is
+    Ownable,
+    IERC721Receiver,
+    IERC1155Receiver,
+    ReentrancyGuard
+{
     // events
-    event Sell(address indexed seller, address indexed token, uint256 id);
-    event Buy(address indexed buyer, address[] tokens, uint56[] ids);
+    event Sell(
+        address indexed seller,
+        address indexed token,
+        uint16 type_,
+        uint256 id,
+        uint256 amount
+    );
+    // TODO could trim down some these events
+    event Buy(
+        address indexed buyer,
+        address[] tokens,
+        uint16[] types,
+        uint256[] ids,
+        uint256[] amounts
+    );
     event OfferUpdated(uint256 offer);
     event AuctionUpdated(uint256 min, uint256 max, uint256 duration);
     event TakeUpdated(uint256 take);
@@ -20,6 +39,10 @@ contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
         Unknown,
         ERC721,
         ERC1155
+    }
+    struct Item {
+        address token;
+        uint96 id;
     }
 
     // config
@@ -33,6 +56,7 @@ contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
 
     // data
     mapping(address => TokenType) public tokens;
+    Item[] public inventory; // TODO consider mapping
     uint256 fees;
 
     /**
@@ -72,17 +96,26 @@ contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
 
     /**
      * @notice handles receipt and purchase of an ERC721 token
-     * @param operator address of operator
      * @param from address of token sender
      * @param tokenId uint256 id of token
-     * @param data other data
      */
     function onERC721Received(
-        address operator,
+        address /*operator*/,
         address from,
         uint256 tokenId,
-        bytes calldata data
-    ) external returns (bytes4) {}
+        bytes calldata /*data*/
+    ) external nonReentrant returns (bytes4) {
+        require(tokens[msg.sender] > TokenType.Unknown, "unknown token");
+        require(address(this).balance - fees > offer, "insufficient funds");
+
+        inventory.push(Item(msg.sender, uint96(tokenId)));
+
+        emit Sell(from, msg.sender, uint16(TokenType.ERC721), tokenId, 1);
+        (bool sent, ) = payable(from).call{value: offer}("");
+        require(sent, "ether transfer failed");
+
+        return this.onERC721Received.selector;
+    }
 
     /**
      * @notice handles receipt and purchase of an ERC1155 token
@@ -98,7 +131,9 @@ contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
         uint256 id,
         uint256 value,
         bytes calldata data
-    ) external returns (bytes4) {}
+    ) external nonReentrant returns (bytes4) {
+        // TODO
+    }
 
     /**
      * @notice handles receipt and purchase of an ERC1155 token batch
@@ -114,7 +149,9 @@ contract GarageSale is Ownable, IERC721Receiver, IERC1155Receiver {
         uint256[] calldata ids,
         uint256[] calldata values,
         bytes calldata data
-    ) external returns (bytes4) {}
+    ) external nonReentrant returns (bytes4) {
+        // TODO
+    }
 
     // --- configuration ------------------------------------------------------
 
