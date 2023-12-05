@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-contract GarageSale {
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+contract GarageSale is Ownable {
     // events
     event Sell(address indexed seller, address indexed token, uint256 id);
     event Buy(address indexed buyer, address[] tokens, uint56[] ids);
@@ -33,7 +35,7 @@ contract GarageSale {
     /**
      * @notice initialize garage sale contract with reasonable defaults
      */
-    constructor() {
+    constructor() Ownable(msg.sender) {
         offer = 1e14; // 0.0001 ether
         min = 1e15; // 0.001 ether
         max = 1e17; // 0.1 ether
@@ -44,7 +46,10 @@ contract GarageSale {
     }
 
     modifier onlyController() {
-        require(msg.sender == controller, "sender is not controller");
+        require(
+            msg.sender == controller || msg.sender == owner(),
+            "sender is not controller"
+        );
         _;
     }
 
@@ -80,7 +85,7 @@ contract GarageSale {
     }
 
     /**
-     * @param take_  new take rate fee
+     * @param take_ new take rate
      */
     function setTake(uint256 take_) public onlyController {
         require(take < 1e3, "fee too high");
@@ -88,14 +93,20 @@ contract GarageSale {
         emit TakeUpdated(take_);
     }
 
+    /**
+     * @param token address of token to update
+     * @param enabled new status of token
+     */
     function setToken(address token, bool enabled) public onlyController {
         // TODO verify token type
         tokens[token].enabled = enabled;
         emit TokenUpdated(token, enabled);
     }
 
-    function setController(address controller_) public {
-        // TODO only owner
+    /**
+     * @param controller_ new controller address
+     */
+    function setController(address controller_) public onlyOwner {
         controller = controller_;
         emit ControllerUpdated(controller_);
     }

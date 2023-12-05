@@ -2,6 +2,8 @@
 pragma solidity 0.8.23;
 
 import {Test, console2} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
 import {GarageSale} from "../src/GarageSale.sol";
 
 contract ConfigurationTest is Test {
@@ -43,6 +45,20 @@ contract ConfigurationTest is Test {
         vm.assume(x < 1e15 / 4);
         gs.setOffer(x);
         assertEq(gs.offer(), x);
+    }
+
+    function test_OfferPriceController() public {
+        gs.setController(alice);
+        vm.prank(alice);
+        gs.setOffer(2e14); // 0.0002
+        assertEq(gs.offer(), 2e14);
+    }
+
+    function test_OfferPriceOwner() public {
+        gs.setController(alice);
+        // call as owner
+        gs.setOffer(1e13); // 0.00001
+        assertEq(gs.offer(), 1e13);
     }
 
     function test_AuctionConfig() public {
@@ -93,5 +109,18 @@ contract ConfigurationTest is Test {
         emit GarageSale.ControllerUpdated(bob);
         gs.setController(bob);
         assertEq(gs.controller(), bob);
+    }
+
+    function test_ControllerUnauthorized() public {
+        gs.setController(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                alice
+            ) // controller cannot change reassign their role
+        );
+        vm.prank(alice);
+        gs.setController(bob);
+        assertEq(gs.controller(), alice);
     }
 }
