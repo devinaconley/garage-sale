@@ -195,6 +195,27 @@ contract GarageSale is
         emit Sell(from, token, uint16(TokenType.ERC1155), id, value);
     }
 
+    // --- buy ----------------------------------------------------------------
+
+    function buy() external payable {
+        // TODO
+    }
+
+    function preview() external view returns (Item[] memory) {
+        // TODO
+    }
+
+    function current() public view returns (uint256[] memory) {
+        // TODO
+    }
+
+    function seed() public view returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(duration * ((block.timestamp) / duration))
+            );
+    }
+
     // --- info ---------------------------------------------------------------
 
     function inventorySize() external view returns (uint256) {
