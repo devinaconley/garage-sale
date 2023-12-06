@@ -5,14 +5,20 @@ import {Test, console2} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {GarageSale} from "../src/GarageSale.sol";
+import {TestERC721} from "../src/test/ERC721.sol";
+import {TestERC1155} from "../src/test/ERC1155.sol";
 
 contract ConfigurationTest is Test {
     GarageSale gs;
+    TestERC721 erc721;
+    TestERC1155 erc1155;
     address alice;
     address bob;
 
     function setUp() public {
         gs = new GarageSale();
+        erc721 = new TestERC721("TestERC721", "NFT");
+        erc1155 = new TestERC1155();
         alice = address(0xa11ce);
         bob = address(0x808);
     }
@@ -90,7 +96,7 @@ contract ConfigurationTest is Test {
     }
 
     function test_TokenWhitelist() public {
-        address tkn = address(12345);
+        address tkn = address(erc721);
         vm.expectEmit(address(gs));
         emit GarageSale.TokenUpdated(tkn, 1);
         gs.setToken(tkn, 1);
@@ -98,7 +104,7 @@ contract ConfigurationTest is Test {
     }
 
     function test_TokenWhitelist1155() public {
-        address tkn = address(1155);
+        address tkn = address(erc1155);
         vm.expectEmit(address(gs));
         emit GarageSale.TokenUpdated(tkn, 2);
         gs.setToken(tkn, 2);
@@ -114,6 +120,21 @@ contract ConfigurationTest is Test {
     function test_TokenTypeInvalid() public {
         vm.expectRevert("token type is invalid");
         gs.setToken(address(0xabcde), 3);
+    }
+
+    function test_TokenZero() public {
+        vm.expectRevert("token is zero address");
+        gs.setToken(address(0), 1);
+    }
+
+    function test_TokenTypeWrong() public {
+        vm.expectRevert("token does not support expected interface");
+        gs.setToken(address(erc1155), 1);
+    }
+
+    function test_TokenNotContract() public {
+        vm.expectRevert();
+        gs.setToken(address(12345), 1);
     }
 
     function test_Controller() public {
