@@ -36,6 +36,8 @@ contract GarageSale is
     event TakeUpdated(uint256 take);
     event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
+    event Funded(uint256 amount);
+    event Withdrawn(uint256 amount);
 
     // types
     enum TokenType {
@@ -47,6 +49,9 @@ contract GarageSale is
         address token;
         uint96 id;
     }
+
+    // constants
+    //uint256 constant MIN_ITEMS = 16;
 
     // config
     uint256 public offer; // wei
@@ -61,14 +66,15 @@ contract GarageSale is
     mapping(address => TokenType) public tokens;
     Item[] public inventory; // TODO consider mapping
     mapping(uint256 => bool) public exists; // need this for ERC1155 only
-    uint256 fees;
+    uint256 public previous; // last inventory size
+    uint256 public fees;
 
     /**
      * @notice initialize garage sale contract with reasonable defaults
      */
     constructor() Ownable(msg.sender) {
         offer = 1e12; // 0.000001 ether
-        min = 1e15; // 0.001 ether
+        min = 1e16; // 0.01 ether
         max = 1e17; // 0.1 ether
         duration = 15 * 60; // 15 minutes
         bundle = 4;
@@ -197,8 +203,23 @@ contract GarageSale is
 
     // --- buy ----------------------------------------------------------------
 
-    function buy() external payable {
-        // TODO
+    function buy(uint256 seed_) external payable nonReentrant {
+        require(msg.value >= price(), "insufficient payment");
+        require(previous > bundle, "insufficient inventory"); // TODO auto bump?
+        uint256 s = uint256(seed());
+        require(seed_ == s, "stale transaction");
+
+        for (uint256 i; i < bundle; i++) {
+            uint256 r = s % (previous - i);
+            // backfill removed item
+            inventory[r] = inventory[previous - i];
+            if (inventory.length > previous - i) {
+                // reindex new pending items
+                inventory[previous - i] = inventory[inventory.length - 1];
+            }
+            inventory.pop();
+        }
+        // TODO send all, emit
     }
 
     function preview() external view returns (Item[] memory) {
@@ -209,10 +230,18 @@ contract GarageSale is
         // TODO
     }
 
+    function price() public view returns (uint256) {
+        uint256 elapsed = block.timestamp % duration;
+        return max - ((max - min) * elapsed) / duration;
+    }
+
     function seed() public view returns (bytes32) {
         return
             keccak256(
-                abi.encodePacked(duration * ((block.timestamp) / duration))
+                abi.encodePacked(
+                    duration * (block.timestamp / duration),
+                    previous
+                )
             );
     }
 
@@ -220,6 +249,10 @@ contract GarageSale is
 
     function inventorySize() external view returns (uint256) {
         return inventory.length;
+    }
+
+    function start() public view returns (uint256) {
+        return duration * (block.timestamp / duration);
     }
 
     // --- configuration ------------------------------------------------------
@@ -286,5 +319,31 @@ contract GarageSale is
     function setController(address controller_) public onlyOwner {
         controller = controller_;
         emit ControllerUpdated(controller_);
+    }
+
+    /**
+     * @notice update data to refresh inventory
+     */
+    function bump() external onlyController {
+        previous = uint128(inventory.length);
+    }
+
+    /**
+     * @notice fund the garage sale contract
+     */
+    function fund() external payable {
+        require(msg.value > 0, "fund amount is zero");
+        emit Funded(msg.value);
+    }
+
+    /**
+     * @notice withdraw contract fees
+     */
+    function withdraw() external onlyOwner {
+        uint256 f = fees;
+        require(f > 0, "zero fees");
+        fees = 0;
+        emit Withdrawn(f);
+        payable(owner()).transfer(f);
     }
 }

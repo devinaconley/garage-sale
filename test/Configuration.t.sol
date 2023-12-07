@@ -37,7 +37,7 @@ contract ConfigurationTest is Test {
 
     function test_OfferPriceHigh() public {
         vm.expectRevert("offer too high");
-        gs.setOffer(5e14);
+        gs.setOffer(5e15);
     }
 
     function test_OfferPriceUnauthorized() public {

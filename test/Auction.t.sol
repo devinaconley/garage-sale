@@ -54,11 +54,13 @@ contract AuctionTest is Test {
         erc721.safeTransferFrom(bob, address(gs), 8);
 
         // inventory: [erc721:5, erc721:7, erc1155:3(42), erc1155:1(4000), erc721#2, erc721#6, erc721#8]
+        gs.bump();
     }
 
     function test_Seed() public {
+        uint256 prev = gs.previous();
         uint256 t0 = 1702629000; // dec 15, 830a utc
-        bytes32 seed = keccak256(abi.encodePacked(t0));
+        bytes32 seed = keccak256(abi.encodePacked(t0, prev));
         vm.warp(t0);
         assertEq(gs.seed(), seed);
 
@@ -76,8 +78,9 @@ contract AuctionTest is Test {
     }
 
     function test_SeedTurnover() public {
+        uint256 prev = gs.previous();
         uint256 t0 = 1735675200; // 2024/12/31 8p utc
-        bytes32 s0 = keccak256(abi.encodePacked(t0));
+        bytes32 s0 = keccak256(abi.encodePacked(t0, prev));
         vm.warp(t0);
         assertEq(gs.seed(), s0);
 
@@ -88,7 +91,7 @@ contract AuctionTest is Test {
         assertEq(gs.seed(), s0);
 
         uint256 t1 = 1735676100; // 2024/12/31 815p utc
-        bytes32 s1 = keccak256(abi.encodePacked(t1));
+        bytes32 s1 = keccak256(abi.encodePacked(t1, prev));
         vm.warp(t1);
         assertEq(gs.seed(), s1);
 
@@ -98,11 +101,12 @@ contract AuctionTest is Test {
         assertNotEq(s0, s1);
     }
 
-    function test_SeedDurationChanged() public {
+    function test_SeedAuctionChanged() public {
         gs.setAuction(1e15, 1e17, 3600);
+        uint256 prev = gs.previous();
 
         uint256 t0 = 1735675200; // 2024/12/31 8p utc
-        bytes32 s0 = keccak256(abi.encodePacked(t0));
+        bytes32 s0 = keccak256(abi.encodePacked(t0, prev));
         vm.warp(t0);
         assertEq(gs.seed(), s0);
 
@@ -110,7 +114,7 @@ contract AuctionTest is Test {
         assertEq(gs.seed(), s0);
 
         uint256 t1 = 1735678800; // 2024/12/31 9p utc
-        bytes32 s1 = keccak256(abi.encodePacked(t1));
+        bytes32 s1 = keccak256(abi.encodePacked(t1, prev));
         vm.warp(t1);
         assertEq(gs.seed(), s1);
 
@@ -118,5 +122,55 @@ contract AuctionTest is Test {
         assertEq(gs.seed(), s1);
 
         assertNotEq(s0, s1);
+    }
+
+    function test_Price() public {
+        uint256 t0 = 1702629000; // dec 15, 830a utc
+        vm.warp(t0);
+        assertEq(gs.price(), 0.1 ether);
+
+        vm.warp(1702629100); // 100 seconds later
+        assertEq(gs.price(), 0.09 ether);
+
+        vm.warp(1702629450); // halfway through auction
+        assertEq(gs.price(), 0.055 ether);
+
+        vm.warp(1702629895); // 5 seconds left
+        assertEq(gs.price(), 0.0105 ether);
+    }
+
+    function test_PriceTurnover() public {
+        uint256 t0 = 1735675200; // 2024/12/31 8p utc
+        vm.warp(t0);
+        assertEq(gs.price(), 0.1 ether);
+
+        vm.warp(t0 + 300); // 300 seconds later
+        assertEq(gs.price(), 0.07 ether);
+
+        vm.warp(t0 + 885); // 15 seconds left
+        assertEq(gs.price(), 0.0115 ether);
+
+        vm.warp(t0 + 900); // next auction window
+        assertEq(gs.price(), 0.1 ether);
+
+        vm.warp(t0 + 930); // 30 seconds in
+        assertEq(gs.price(), 0.097 ether);
+    }
+
+    function test_PriceAuctionChanged() public {
+        gs.setAuction(2e16, 4e16, 3600);
+
+        uint256 t0 = 1735675200; // 2024/12/31 8p utc
+        vm.warp(t0);
+        assertEq(gs.price(), 0.04 ether);
+
+        vm.warp(t0 + 1800); // 30 minutes later
+        assertEq(gs.price(), 0.03 ether);
+
+        vm.warp(t0 + 3540); // 1 minute left
+        assertApproxEqAbs(gs.price(), 0.0203333 ether, 1e12);
+
+        vm.warp(t0 + 3780); // next auction window
+        assertEq(gs.price(), 0.039 ether);
     }
 }
