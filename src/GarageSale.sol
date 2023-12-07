@@ -64,9 +64,10 @@ contract GarageSale is
 
     // data
     mapping(address => TokenType) public tokens;
-    Item[] public inventory; // TODO consider mapping
+    Item[] public inventory;
     mapping(uint256 => bool) public exists; // need this for ERC1155 only
     uint256 public previous; // last inventory size
+    uint256 public nonce; // last auction window purchased
     uint256 public fees;
 
     /**
@@ -206,20 +207,64 @@ contract GarageSale is
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
         require(previous > bundle, "insufficient inventory"); // TODO auto bump?
-        uint256 s = uint256(seed());
+        uint256 t = duration * (block.timestamp / duration);
+        require(t > nonce, "already purchased");
+        uint256 s = seed();
         require(seed_ == s, "stale transaction");
 
+        address[] memory addrs = new address[](bundle);
+        uint16[] memory types = new uint16[](bundle);
+        uint256[] memory ids = new uint256[](bundle);
+        uint256[] memory amounts = new uint256[](bundle);
+
+        // shuffle
         for (uint256 i; i < bundle; i++) {
+            // get item data
             uint256 r = s % (previous - i);
+            addrs[i] = inventory[r].token;
+            ids[i] = inventory[r].id;
             // backfill removed item
-            inventory[r] = inventory[previous - i];
+            inventory[r] = inventory[previous - i - 1];
             if (inventory.length > previous - i) {
                 // reindex new pending items
-                inventory[previous - i] = inventory[inventory.length - 1];
+                inventory[previous - i - 1] = inventory[inventory.length - 1];
             }
             inventory.pop();
         }
-        // TODO send all, emit
+        previous = inventory.length;
+        nonce = t;
+
+        // send all
+        for (uint256 i; i < bundle; i++) {
+            TokenType type_ = tokens[addrs[i]];
+            types[i] = uint16(type_);
+            if (type_ == TokenType.ERC721) {
+                amounts[i] = 1;
+                IERC721(addrs[i]).safeTransferFrom(
+                    address(this),
+                    msg.sender,
+                    ids[i]
+                );
+            } else {
+                // get full balance
+                IERC1155 tkn = IERC1155(addrs[i]);
+                uint256 bal = tkn.balanceOf(address(this), ids[i]);
+                amounts[i] = bal;
+                // clear exists key
+                uint256 key = uint256(uint160(addrs[i]));
+                key |= uint256(ids[i]) << 160;
+                exists[key] = false;
+                // send all
+                tkn.safeTransferFrom(
+                    address(this),
+                    msg.sender,
+                    ids[i],
+                    bal,
+                    ""
+                );
+            }
+        }
+        emit Buy(msg.sender, addrs, types, ids, amounts);
     }
 
     function preview() external view returns (Item[] memory) {
@@ -235,12 +280,14 @@ contract GarageSale is
         return max - ((max - min) * elapsed) / duration;
     }
 
-    function seed() public view returns (bytes32) {
+    function seed() public view returns (uint256) {
         return
-            keccak256(
-                abi.encodePacked(
-                    duration * (block.timestamp / duration),
-                    previous
+            uint256(
+                keccak256(
+                    abi.encodePacked(
+                        duration * (block.timestamp / duration),
+                        previous
+                    )
                 )
             );
     }
