@@ -50,9 +50,6 @@ contract GarageSale is
         uint96 id;
     }
 
-    // constants
-    //uint256 constant MIN_ITEMS = 16;
-
     // config
     uint256 public offer; // wei
     uint256 public min; // wei
@@ -267,12 +264,41 @@ contract GarageSale is
         emit Buy(msg.sender, addrs, types, ids, amounts);
     }
 
-    function preview() external view returns (Item[] memory) {
-        // TODO
-    }
+    function preview()
+        external
+        view
+        returns (
+            address[] memory tokens_,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        )
+    {
+        tokens_ = new address[](bundle);
+        types = new uint16[](bundle);
+        ids = new uint256[](bundle);
+        amounts = new uint256[](bundle);
 
-    function current() public view returns (uint256[] memory) {
-        // TODO
+        // preview shuffle
+        uint256[] memory rand = new uint256[](bundle);
+        uint256 s = seed();
+        for (uint256 i; i < bundle; i++) {
+            uint256 r = s % (previous - i);
+            rand[i] = r;
+            for (uint256 j = i; j > 0; j--) {
+                // walk back through replacements
+                if (r == rand[j - 1]) {
+                    r = previous - j;
+                }
+            }
+            Item storage item = inventory[r];
+            tokens_[i] = item.token;
+            types[i] = uint16(tokens[item.token]);
+            ids[i] = item.id;
+            amounts[i] = tokens[item.token] == TokenType.ERC721
+                ? 1
+                : IERC1155(item.token).balanceOf(address(this), item.id);
+        }
     }
 
     function price() public view returns (uint256) {

@@ -346,4 +346,75 @@ contract AuctionTest is Test {
         vm.expectRevert("stale transaction");
         gs.buy{value: 0.06 ether}(seed);
     }
+
+    function test_Preview() public {
+        uint256 t0 = 1702629000; // 830a utc
+        vm.warp(t0 + 180); // 3 minutes into auction window
+        (
+            address[] memory tokens,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        ) = gs.preview();
+
+        // expect items: 2, 1, 2(6), 3
+        assertEq(tokens.length, 4);
+        assertEq(tokens[0], address(erc1155));
+        assertEq(tokens[1], address(erc721));
+        assertEq(tokens[2], address(erc721));
+        assertEq(tokens[3], address(erc1155));
+
+        assertEq(types.length, 4);
+        assertEq(types[0], 2);
+        assertEq(types[1], 1);
+        assertEq(types[2], 1);
+        assertEq(types[3], 2);
+
+        assertEq(ids.length, 4);
+        assertEq(ids[0], 3);
+        assertEq(ids[1], 7);
+        assertEq(ids[2], 8);
+        assertEq(ids[3], 1);
+
+        assertEq(amounts.length, 4);
+        assertEq(amounts[0], 42);
+        assertEq(amounts[1], 1);
+        assertEq(amounts[2], 1);
+        assertEq(amounts[3], 4000);
+    }
+
+    function testFuzz_Preview(uint256 x) public {
+        vm.assume(x > 1701388800);
+        vm.assume(x < 2553465600);
+        vm.warp(x);
+
+        // preview auction
+        (
+            address[] memory tokens,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        ) = gs.preview();
+        uint256 seed = gs.seed();
+
+        // buy
+        address charlie = address(0xcccc);
+        vm.deal(charlie, 1e18);
+        vm.prank(charlie);
+        gs.buy{value: 0.1 ether}(seed);
+
+        // verify expected items
+        for (uint256 i; i < gs.bundle(); i++) {
+            if (types[i] == 1) {
+                assertEq(tokens[i], address(erc721));
+                assertEq(erc721.ownerOf(ids[i]), charlie);
+                assertEq(amounts[i], 1);
+            } else if (types[i] == 2) {
+                assertEq(tokens[i], address(erc1155));
+                assertEq(erc1155.balanceOf(charlie, ids[i]), amounts[i]);
+            } else {
+                assertTrue(false, "invalid type");
+            }
+        }
+    }
 }
