@@ -5,3 +5,11 @@ libs = ["lib"]
 remappings=[
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"
 ]
+optimizer = true
+optimizer_runs = 10_000
+
+[rpc_endpoints]
+sepolia = "${SEPOLIA_RPC_URL}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }

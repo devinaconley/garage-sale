@@ -2,11 +2,14 @@
 pragma solidity 0.8.23;
 
 import {Script, console2} from "forge-std/Script.sol";
+import "../src/GarageSale.sol";
 
-contract GarageSaleScript is Script {
+contract GarageSaleDeploy is Script {
     function setUp() public {}
 
     function run() public {
-        vm.broadcast();
+        vm.startBroadcast();
+        GarageSale gs = new GarageSale();
+        vm.stopBroadcast();
     }
 }
