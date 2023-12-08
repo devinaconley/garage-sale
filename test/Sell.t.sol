@@ -6,6 +6,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import {GarageSale} from "../src/GarageSale.sol";
 import {TestERC721} from "../src/test/ERC721.sol";
 import {TestERC1155} from "../src/test/ERC1155.sol";
+import {BulkSend} from "../src/test/BulkSend.sol";
 
 contract SellTest is Test {
     GarageSale gs;
@@ -288,5 +289,42 @@ contract SellTest is Test {
         (tkn, id) = gs.inventory(4);
         assertEq(tkn, address(erc721));
         assertEq(id, 2);
+    }
+
+    function test_SellErc721Bulk() public {
+        // setup
+        vm.deal(address(gs), 1e18); // fund contract
+        gs.setToken(address(erc721), 1);
+        BulkSend router = new BulkSend();
+        vm.prank(alice);
+        erc721.setApprovalForAll(address(router), true);
+
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721), 1, 1, 1);
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721), 1, 2, 1);
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721), 1, 3, 1);
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721), 1, 4, 1);
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721), 1, 5, 1);
+
+        // sell bulk
+        uint256[] memory ids = new uint256[](5);
+        ids[0] = 1;
+        ids[1] = 2;
+        ids[2] = 3;
+        ids[3] = 4;
+        ids[4] = 5;
+        vm.prank(alice);
+        router.send(address(gs), address(erc721), ids);
+
+        // verify
+        assertEq(address(gs).balance, 1e18 - 5e12); // 0.999995
+        assertEq(erc721.balanceOf(alice), 0);
+        assertEq(erc721.balanceOf(address(gs)), 5);
+        assertEq(erc721.ownerOf(3), address(gs));
+        assertEq(gs.inventorySize(), 5);
     }
 }
