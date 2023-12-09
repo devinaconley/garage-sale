@@ -7,6 +7,8 @@ remappings=[
 ]
 optimizer = true
 optimizer_runs = 10_000
+gas_reports = ["GarageSale"]
+
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

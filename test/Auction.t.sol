@@ -60,7 +60,7 @@ contract AuctionTest is Test {
     }
 
     function test_Seed() public {
-        uint256 prev = gs.previous();
+        uint256 prev = gs.available();
         uint256 t0 = 1702629000; // dec 15, 830a utc
         uint256 seed = uint256(keccak256(abi.encodePacked(t0, prev)));
         vm.warp(t0);
@@ -80,7 +80,7 @@ contract AuctionTest is Test {
     }
 
     function test_SeedTurnover() public {
-        uint256 prev = gs.previous();
+        uint256 prev = gs.available();
         uint256 t0 = 1735675200; // 2024/12/31 8p utc
         uint256 s0 = uint256(keccak256(abi.encodePacked(t0, prev)));
         vm.warp(t0);
@@ -105,7 +105,7 @@ contract AuctionTest is Test {
 
     function test_SeedAuctionChanged() public {
         gs.setAuction(1e15, 1e17, 3600);
-        uint256 prev = gs.previous();
+        uint256 prev = gs.available();
 
         uint256 t0 = 1735675200; // 2024/12/31 8p utc
         uint256 s0 = uint256(keccak256(abi.encodePacked(t0, prev)));
@@ -187,7 +187,7 @@ contract AuctionTest is Test {
 
         // verify
         assertEq(gs.inventorySize(), 3);
-        assertEq(gs.previous(), 3);
+        assertEq(gs.available(), 3);
         assertEq(gs.nonce(), t0);
 
         assertEq(erc1155.balanceOf(alice, 3), 42);
@@ -227,7 +227,7 @@ contract AuctionTest is Test {
 
         // verify
         assertEq(gs.inventorySize(), 3);
-        assertEq(gs.previous(), 3);
+        assertEq(gs.available(), 3);
         assertEq(gs.nonce(), t0);
 
         assertEq(erc1155.balanceOf(charlie, 3), 42);
@@ -253,7 +253,7 @@ contract AuctionTest is Test {
         erc721.safeTransferFrom(alice, address(gs), 4);
 
         assertEq(gs.inventorySize(), 9);
-        assertEq(gs.previous(), 7);
+        assertEq(gs.available(), 7);
 
         // buy
         address charlie = address(0xcccc);
@@ -263,7 +263,7 @@ contract AuctionTest is Test {
 
         // verify
         assertEq(gs.inventorySize(), 5);
-        assertEq(gs.previous(), 5);
+        assertEq(gs.available(), 5);
         assertEq(gs.nonce(), t0);
 
         assertEq(erc1155.balanceOf(charlie, 1), 4000); // 3
@@ -347,6 +347,58 @@ contract AuctionTest is Test {
         gs.buy{value: 0.06 ether}(seed);
     }
 
+    function test_BuyAutoBump() public {
+        uint256 t0 = 1702629000;
+        vm.warp(t0 + 885); // 15 seconds left, price @ 0.0115
+        uint256 seed = gs.seed();
+
+        vm.prank(alice);
+        gs.buy{value: 0.012 ether}(seed);
+
+        vm.warp(t0 + 1350); // next auction
+        seed = gs.seed();
+        //emit log_uint(seed);
+
+        // unable to preview or buy
+        address charlie = address(0xcccc);
+        vm.deal(charlie, 1e18);
+        vm.prank(charlie);
+        vm.expectRevert("insufficient inventory");
+        gs.preview();
+        vm.expectRevert("insufficient inventory");
+        gs.buy{value: 0.1 ether}(seed);
+
+        // new inventory comes in, but controller has not called bump()
+        // second lot: 721:5, 721:6, 721:2, 1155:2(1), 721:4
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 2, 1, "");
+        vm.prank(alice);
+        erc721.safeTransferFrom(alice, address(gs), 4);
+        assertEq(gs.available(), 3);
+        assertEq(gs.inventorySize(), 5);
+
+        // should be able to buy
+        vm.prank(charlie);
+        gs.buy{value: 0.055 ether}(seed); // expect: 2, 1, 0, 1(3) of second lot
+
+        // verify
+        assertEq(gs.inventorySize(), 1);
+        assertEq(gs.available(), 1);
+        assertEq(gs.nonce(), t0 + 900);
+
+        assertEq(erc721.ownerOf(2), charlie);
+        assertEq(erc721.ownerOf(6), charlie);
+        assertEq(erc721.ownerOf(5), charlie);
+        assertEq(erc1155.balanceOf(charlie, 2), 1);
+        assertEq(erc1155.balanceOf(address(gs), 2), 0);
+        assertEq(erc721.balanceOf(charlie), 3);
+
+        (address tkn, uint256 id) = gs.inventory(0); // only item remaining
+        assertEq(tkn, address(erc721));
+        assertEq(id, 4);
+        assertEq(erc721.balanceOf(address(gs)), 1);
+    }
+
     function test_Preview() public {
         uint256 t0 = 1702629000; // 830a utc
         vm.warp(t0 + 180); // 3 minutes into auction window
@@ -381,6 +433,77 @@ contract AuctionTest is Test {
         assertEq(amounts[1], 1);
         assertEq(amounts[2], 1);
         assertEq(amounts[3], 4000);
+    }
+
+    function test_PreviewLowInventory() public {
+        uint256 t0 = 1702629000; // 830a utc
+        vm.warp(t0 + 180); // 3 minutes into auction window
+        uint256 seed = gs.seed();
+        vm.prank(alice);
+        gs.buy{value: 0.09 ether}(seed);
+
+        vm.warp(t0 + 930); // next auction
+        seed = gs.seed();
+
+        vm.prank(bob);
+        vm.expectRevert("insufficient inventory");
+        gs.preview();
+    }
+
+    function test_PreviewAutoBump() public {
+        uint256 t0 = 1702629000;
+        vm.warp(t0 + 180);
+        uint256 seed = gs.seed();
+        vm.prank(alice);
+        gs.buy{value: 0.09 ether}(seed);
+
+        vm.warp(t0 + 930); // next auction
+        seed = gs.seed();
+
+        vm.prank(bob);
+        vm.expectRevert("insufficient inventory");
+        gs.preview();
+
+        // new inventory comes in, but controller has not called bump()
+        // second lot: 721:5, 721:6, 721:2, 1155:2(1), 721:4
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 2, 1, "");
+        vm.prank(alice);
+        erc721.safeTransferFrom(alice, address(gs), 4);
+        assertEq(gs.available(), 3);
+        assertEq(gs.inventorySize(), 5);
+
+        // expect: 2, 1, 0, 1(3) of second lot
+        (
+            address[] memory tokens,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        ) = gs.preview();
+
+        assertEq(tokens.length, 4);
+        assertEq(tokens[0], address(erc721));
+        assertEq(tokens[1], address(erc721));
+        assertEq(tokens[2], address(erc721));
+        assertEq(tokens[3], address(erc1155));
+
+        assertEq(types.length, 4);
+        assertEq(types[0], 1);
+        assertEq(types[1], 1);
+        assertEq(types[2], 1);
+        assertEq(types[3], 2);
+
+        assertEq(ids.length, 4);
+        assertEq(ids[0], 2);
+        assertEq(ids[1], 6);
+        assertEq(ids[2], 5);
+        assertEq(ids[3], 2);
+
+        assertEq(amounts.length, 4);
+        assertEq(amounts[0], 1);
+        assertEq(amounts[1], 1);
+        assertEq(amounts[2], 1);
+        assertEq(amounts[3], 1);
     }
 
     function testFuzz_Preview(uint256 x) public {

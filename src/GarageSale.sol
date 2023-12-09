@@ -63,7 +63,7 @@ contract GarageSale is
     mapping(address => TokenType) public tokens;
     Item[] public inventory;
     mapping(uint256 => bool) public exists; // need this for ERC1155 only
-    uint256 public previous; // last inventory size
+    uint256 public available; // last inventory size
     uint256 public nonce; // last auction window purchased
     uint256 public fees;
 
@@ -203,7 +203,11 @@ contract GarageSale is
 
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
-        require(previous > bundle, "insufficient inventory"); // TODO auto bump?
+        uint256 avail = available;
+        if (avail <= bundle && inventory.length > bundle) {
+            avail = bundle + 1; // we can auto bump
+        }
+        require(avail > bundle, "insufficient inventory");
         uint256 t = duration * (block.timestamp / duration);
         require(t > nonce, "already purchased");
         uint256 s = seed();
@@ -217,18 +221,18 @@ contract GarageSale is
         // shuffle
         for (uint256 i; i < bundle; i++) {
             // get item data
-            uint256 r = s % (previous - i);
+            uint256 r = s % (avail - i);
             addrs[i] = inventory[r].token;
             ids[i] = inventory[r].id;
             // backfill removed item
-            inventory[r] = inventory[previous - i - 1];
-            if (inventory.length > previous - i) {
+            inventory[r] = inventory[avail - i - 1];
+            if (inventory.length > avail - i) {
                 // reindex new pending items
-                inventory[previous - i - 1] = inventory[inventory.length - 1];
+                inventory[avail - i - 1] = inventory[inventory.length - 1];
             }
             inventory.pop();
         }
-        previous = inventory.length;
+        available = inventory.length;
         nonce = t;
 
         // send all
@@ -274,6 +278,12 @@ contract GarageSale is
             uint256[] memory amounts
         )
     {
+        uint256 avail = available;
+        if (avail <= bundle && inventory.length > bundle) {
+            avail = bundle + 1; // we can auto bump
+        }
+        require(avail > bundle, "insufficient inventory");
+
         tokens_ = new address[](bundle);
         types = new uint16[](bundle);
         ids = new uint256[](bundle);
@@ -283,12 +293,12 @@ contract GarageSale is
         uint256[] memory rand = new uint256[](bundle);
         uint256 s = seed();
         for (uint256 i; i < bundle; i++) {
-            uint256 r = s % (previous - i);
+            uint256 r = s % (avail - i);
             rand[i] = r;
             for (uint256 j = i; j > 0; j--) {
                 // walk back through replacements
                 if (r == rand[j - 1]) {
-                    r = previous - j;
+                    r = avail - j;
                 }
             }
             Item storage item = inventory[r];
@@ -312,7 +322,7 @@ contract GarageSale is
                 keccak256(
                     abi.encodePacked(
                         duration * (block.timestamp / duration),
-                        previous
+                        available
                     )
                 )
             );
@@ -398,7 +408,7 @@ contract GarageSale is
      * @notice update data to refresh inventory
      */
     function bump() external onlyController {
-        previous = uint128(inventory.length);
+        available = uint128(inventory.length);
     }
 
     /**
