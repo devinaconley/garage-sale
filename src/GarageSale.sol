@@ -234,6 +234,7 @@ contract GarageSale is
         }
         available = inventory.length;
         nonce = t;
+        fees += (take * msg.value) / 1e3;
 
         // send all
         for (uint256 i; i < bundle; i++) {
@@ -437,6 +438,7 @@ contract GarageSale is
         require(f > 0, "zero fees");
         fees = 0;
         emit Withdrawn(f);
-        payable(owner()).transfer(f);
+        (bool sent, ) = payable(msg.sender).call{value: f}("");
+        require(sent, "ether withdraw failed");
     }
 }

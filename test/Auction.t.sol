@@ -546,4 +546,48 @@ contract AuctionTest is Test {
             }
         }
     }
+
+    function test_Withdraw() public {
+        uint256 t0 = 1702629000;
+        vm.warp(t0 + 450); // halfway through auction
+        uint256 seed = gs.seed();
+        vm.prank(alice);
+        gs.buy{value: 0.055 ether}(seed);
+
+        // eoa to receive eth
+        gs.transferOwnership(bob);
+        uint256 ownerPrev = bob.balance;
+        uint256 contractPrev = address(gs).balance;
+
+        vm.expectEmit(address(gs));
+        emit GarageSale.Withdrawn(0.0055 ether);
+        vm.prank(bob);
+        gs.withdraw();
+
+        assertEq(bob.balance - ownerPrev, 0.0055 ether);
+        assertEq(contractPrev - address(gs).balance, 0.0055 ether);
+    }
+
+    function test_WithdrawContract() public {
+        uint256 t0 = 1702629000;
+        vm.warp(t0 + 450); // halfway through auction
+        uint256 seed = gs.seed();
+        vm.prank(alice);
+        gs.buy{value: 0.055 ether}(seed);
+
+        address owner = gs.owner();
+        uint32 size;
+        assembly {
+            size := extcodesize(owner)
+        }
+        assertGt(size, 0); // expect transfer revert with contract owner
+
+        vm.expectRevert("ether withdraw failed");
+        gs.withdraw();
+    }
+
+    function test_WithdrawInsufficient() public {
+        vm.expectRevert("zero fees");
+        gs.withdraw();
+    }
 }
