@@ -97,44 +97,114 @@ contract ConfigurationTest is Test {
 
     function test_TokenWhitelist() public {
         address tkn = address(erc721);
+        address[] memory tokens = new address[](1);
+        tokens[0] = tkn;
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+
         vm.expectEmit(address(gs));
         emit GarageSale.TokenUpdated(tkn, 1);
-        gs.setToken(tkn, 1);
+        gs.setTokens(tokens, types);
         assertEq(uint16(gs.tokens(tkn)), uint16(GarageSale.TokenType.ERC721));
     }
 
     function test_TokenWhitelist1155() public {
         address tkn = address(erc1155);
+        address[] memory tokens = new address[](1);
+        tokens[0] = tkn;
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+
         vm.expectEmit(address(gs));
         emit GarageSale.TokenUpdated(tkn, 2);
-        gs.setToken(tkn, 2);
+        gs.setTokens(tokens, types);
         assertEq(uint16(gs.tokens(tkn)), uint16(GarageSale.TokenType.ERC1155));
     }
 
+    function test_TokenWhitelistBatch() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(erc721);
+        tokens[1] = address(erc1155);
+        uint16[] memory types = new uint16[](2);
+        types[0] = 1;
+        types[1] = 2;
+
+        vm.expectEmit(address(gs));
+        emit GarageSale.TokenUpdated(address(erc721), 1);
+        emit GarageSale.TokenUpdated(address(erc1155), 2);
+
+        gs.setTokens(tokens, types);
+
+        assertEq(
+            uint16(gs.tokens(address(erc721))),
+            uint16(GarageSale.TokenType.ERC721)
+        );
+        assertEq(
+            uint16(gs.tokens(address(erc1155))),
+            uint16(GarageSale.TokenType.ERC1155)
+        );
+    }
+
     function test_TokenUnauthorized() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+
         vm.expectRevert("sender is not controller");
         vm.prank(alice);
-        gs.setToken(address(333), 1);
+        gs.setTokens(tokens, types);
     }
 
     function test_TokenTypeInvalid() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0xabcde);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 3;
+
         vm.expectRevert("token type is invalid");
-        gs.setToken(address(0xabcde), 3);
+        gs.setTokens(tokens, types);
     }
 
     function test_TokenZero() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+
         vm.expectRevert("token is zero address");
-        gs.setToken(address(0), 1);
+        gs.setTokens(tokens, types);
     }
 
     function test_TokenTypeWrong() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+
         vm.expectRevert("token does not support expected interface");
-        gs.setToken(address(erc1155), 1);
+        gs.setTokens(tokens, types);
     }
 
     function test_TokenNotContract() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+
         vm.expectRevert();
-        gs.setToken(address(12345), 1);
+        gs.setTokens(tokens, types);
+    }
+
+    function test_TokenMismatchLength() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](2);
+        types[0] = 1;
+        types[0] = 2;
+
+        vm.expectRevert("arrays not equal length");
+        gs.setTokens(tokens, types);
     }
 
     function test_Controller() public {

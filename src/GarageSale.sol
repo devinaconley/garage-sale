@@ -360,7 +360,7 @@ contract GarageSale is
         uint256 min_,
         uint256 max_,
         uint256 duration_
-    ) public onlyController {
+    ) external onlyController {
         require(min_ > bundle * offer, "min too low");
         require(min_ <= max_, "min is greater than max price");
         min = min_;
@@ -372,34 +372,44 @@ contract GarageSale is
     /**
      * @param take_ new take rate
      */
-    function setTake(uint256 take_) public onlyController {
+    function setTake(uint256 take_) external onlyController {
         require(take < 1e3, "fee too high");
         take = uint16(take_);
         emit TakeUpdated(take_);
     }
 
     /**
-     * @param token address of token to update
-     * @param type_ new token type
+     * @param tokens_ addresses of tokens to update
+     * @param types new token types
      */
-    function setToken(address token, uint16 type_) public onlyController {
-        require(token != address(0), "token is zero address");
-        require(type_ <= uint16(TokenType.ERC1155), "token type is invalid");
-        bytes4 interface_ = type_ == uint16(TokenType.ERC721)
-            ? type(IERC721).interfaceId
-            : type(IERC1155).interfaceId;
-        require(
-            IERC165(token).supportsInterface(interface_),
-            "token does not support expected interface"
-        );
-        tokens[token] = TokenType(type_);
-        emit TokenUpdated(token, type_);
+    function setTokens(
+        address[] calldata tokens_,
+        uint16[] calldata types
+    ) external onlyController {
+        require(tokens_.length == types.length, "arrays not equal length");
+        for (uint256 i; i < tokens_.length; i++) {
+            require(tokens_[i] != address(0), "token is zero address");
+            require(
+                types[i] <= uint16(TokenType.ERC1155),
+                "token type is invalid"
+            );
+            bytes4 interface_ = types[i] == uint16(TokenType.ERC721)
+                ? type(IERC721).interfaceId
+                : type(IERC1155).interfaceId;
+            require(
+                IERC165(tokens_[i]).supportsInterface(interface_),
+                "token does not support expected interface"
+            );
+
+            tokens[tokens_[i]] = TokenType(types[i]);
+            emit TokenUpdated(tokens_[i], types[i]);
+        }
     }
 
     /**
      * @param controller_ new controller address
      */
-    function setController(address controller_) public onlyOwner {
+    function setController(address controller_) external onlyOwner {
         controller = controller_;
         emit ControllerUpdated(controller_);
     }

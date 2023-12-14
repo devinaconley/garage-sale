@@ -24,8 +24,14 @@ contract AuctionTest is Test {
         vm.deal(address(gs), 1e18);
         vm.deal(alice, 1e18);
         vm.deal(bob, 1e18);
-        gs.setToken(address(erc721), 1);
-        gs.setToken(address(erc1155), 2);
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(erc721);
+        tokens[1] = address(erc1155);
+        uint16[] memory types = new uint16[](2);
+        types[0] = 1;
+        types[1] = 2;
+        gs.setTokens(tokens, types);
 
         erc721.mint(alice, 5);
         erc721.mint(bob, 3);

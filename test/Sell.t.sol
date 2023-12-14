@@ -32,7 +32,11 @@ contract SellTest is Test {
     function test_Sell() public {
         // setup
         vm.deal(address(gs), 1e18); // fund contract
-        gs.setToken(address(erc721), 1);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
 
         vm.expectEmit(address(gs));
         emit GarageSale.Sell(alice, address(erc721), 1, 3, 1);
@@ -54,7 +58,11 @@ contract SellTest is Test {
     function test_SellAgain() public {
         // setup
         vm.deal(address(gs), 1e18);
-        gs.setToken(address(erc721), 1);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
 
         // sell multiple
         vm.expectEmit(address(gs));
@@ -100,7 +108,11 @@ contract SellTest is Test {
 
     function test_SellUnfunded() public {
         // setup
-        gs.setToken(address(erc721), 1);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
 
         // try sell
         vm.expectRevert("insufficient funds");
@@ -116,7 +128,11 @@ contract SellTest is Test {
     function test_SellErc1155() public {
         // setup
         vm.deal(address(gs), 1e18); // fund contract
-        gs.setToken(address(erc1155), 2);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+        gs.setTokens(tokens, types);
 
         vm.expectEmit(address(gs));
         emit GarageSale.Sell(alice, address(erc1155), 2, 1, 1000);
@@ -141,7 +157,11 @@ contract SellTest is Test {
     function test_SellErc1155Again() public {
         // setup
         vm.deal(address(gs), 1e18);
-        gs.setToken(address(erc1155), 2);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+        gs.setTokens(tokens, types);
 
         vm.expectEmit(address(gs));
         emit GarageSale.Sell(alice, address(erc1155), 2, 1, 1000);
@@ -182,7 +202,11 @@ contract SellTest is Test {
 
     function test_SellErc1155Unfunded() public {
         // setup
-        gs.setToken(address(erc1155), 2);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+        gs.setTokens(tokens, types);
 
         // try sell
         vm.expectRevert("insufficient funds");
@@ -198,7 +222,11 @@ contract SellTest is Test {
     function test_SellErc1155Batch() public {
         // setup
         vm.deal(address(gs), 1e18);
-        gs.setToken(address(erc1155), 2);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+        gs.setTokens(tokens, types);
 
         vm.expectEmit(address(gs));
         emit GarageSale.Sell(alice, address(erc1155), 2, 1, 2500);
@@ -237,8 +265,13 @@ contract SellTest is Test {
     function test_SellMany() public {
         // setup
         vm.deal(address(gs), 1e18);
-        gs.setToken(address(erc721), 1);
-        gs.setToken(address(erc1155), 2);
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(erc721);
+        tokens[1] = address(erc1155);
+        uint16[] memory types = new uint16[](2);
+        types[0] = 1;
+        types[1] = 2;
+        gs.setTokens(tokens, types);
 
         // sell
         vm.prank(alice);
@@ -294,7 +327,11 @@ contract SellTest is Test {
     function test_SellErc721Bulk() public {
         // setup
         vm.deal(address(gs), 1e18); // fund contract
-        gs.setToken(address(erc721), 1);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
         BulkSend router = new BulkSend();
         vm.prank(alice);
         erc721.setApprovalForAll(address(router), true);
