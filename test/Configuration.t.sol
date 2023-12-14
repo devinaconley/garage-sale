@@ -82,19 +82,6 @@ contract ConfigurationTest is Test {
         gs.setAuction(5e14, 2e17, 1800);
     }
 
-    function test_TakeRate() public {
-        vm.expectEmit(address(gs));
-        emit GarageSale.TakeUpdated(30);
-        gs.setTake(30); // 3%
-        assertEq(gs.take(), 3e1);
-    }
-
-    function test_TakeUnauthorized() public {
-        vm.expectRevert("sender is not controller");
-        vm.prank(alice);
-        gs.setTake(8);
-    }
-
     function test_TokenWhitelist() public {
         address tkn = address(erc721);
         address[] memory tokens = new address[](1);

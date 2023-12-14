@@ -2,6 +2,7 @@
 pragma solidity 0.8.23;
 
 import {Test, console2} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {GarageSale} from "../src/GarageSale.sol";
 import {TestERC721} from "../src/test/ERC721.sol";
@@ -560,12 +561,12 @@ contract AuctionTest is Test {
         uint256 contractPrev = address(gs).balance;
 
         vm.expectEmit(address(gs));
-        emit GarageSale.Withdrawn(0.0055 ether);
+        emit GarageSale.Withdrawn(0.123 ether);
         vm.prank(bob);
-        gs.withdraw();
+        gs.withdraw(0.123 ether);
 
-        assertEq(bob.balance - ownerPrev, 0.0055 ether);
-        assertEq(contractPrev - address(gs).balance, 0.0055 ether);
+        assertEq(bob.balance - ownerPrev, 0.123 ether);
+        assertEq(contractPrev - address(gs).balance, 0.123 ether);
     }
 
     function test_WithdrawContract() public {
@@ -583,11 +584,27 @@ contract AuctionTest is Test {
         assertGt(size, 0); // expect transfer revert with contract owner
 
         vm.expectRevert("ether withdraw failed");
-        gs.withdraw();
+        gs.withdraw(0.123 ether);
+    }
+
+    function test_WithdrawZero() public {
+        vm.expectRevert("withdraw amount is zero");
+        gs.withdraw(0);
     }
 
     function test_WithdrawInsufficient() public {
-        vm.expectRevert("zero fees");
-        gs.withdraw();
+        vm.expectRevert("insufficient balance");
+        gs.withdraw(2.34 ether);
+    }
+
+    function test_WithdrawUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                alice
+            )
+        );
+        vm.prank(alice);
+        gs.withdraw(0.5 ether);
     }
 }

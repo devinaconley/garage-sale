@@ -33,7 +33,6 @@ contract GarageSale is
     );
     event OfferUpdated(uint256 offer);
     event AuctionUpdated(uint256 min, uint256 max, uint256 duration);
-    event TakeUpdated(uint256 take);
     event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
     event Funded(uint256 amount);
@@ -56,7 +55,6 @@ contract GarageSale is
     uint256 public max; // wei
     uint32 public duration; // seconds
     uint8 public bundle; // size
-    uint16 public take; // fee (out of 1e3)
     address public controller;
 
     // data
@@ -65,7 +63,6 @@ contract GarageSale is
     mapping(uint256 => bool) public exists; // need this for ERC1155 only
     uint256 public available; // last inventory size
     uint256 public nonce; // last auction window purchased
-    uint256 public fees;
 
     /**
      * @notice initialize garage sale contract with reasonable defaults
@@ -76,7 +73,6 @@ contract GarageSale is
         max = 1e17; // 0.1 ether
         duration = 15 * 60; // 15 minutes
         bundle = 4;
-        take = 1e2; // 10%
         controller = msg.sender;
     }
 
@@ -114,7 +110,7 @@ contract GarageSale is
         bytes calldata /*data*/
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC721, "unknown token");
-        require(address(this).balance - fees > offer, "insufficient funds");
+        require(address(this).balance > offer, "insufficient funds");
 
         inventory.push(Item(msg.sender, uint96(tokenId)));
 
@@ -139,7 +135,7 @@ contract GarageSale is
         bytes calldata /*data*/
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
-        require(address(this).balance - fees > offer, "insufficient funds");
+        require(address(this).balance > offer, "insufficient funds");
 
         _receiveERC1155(from, msg.sender, id, value);
 
@@ -164,7 +160,7 @@ contract GarageSale is
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
         require(
-            address(this).balance - fees > ids.length * offer,
+            address(this).balance > ids.length * offer,
             "insufficient funds"
         );
         require(
@@ -234,7 +230,6 @@ contract GarageSale is
         }
         available = inventory.length;
         nonce = t;
-        fees += (take * msg.value) / 1e3;
 
         // send all
         for (uint256 i; i < bundle; i++) {
@@ -371,15 +366,6 @@ contract GarageSale is
     }
 
     /**
-     * @param take_ new take rate
-     */
-    function setTake(uint256 take_) external onlyController {
-        require(take < 1e3, "fee too high");
-        take = uint16(take_);
-        emit TakeUpdated(take_);
-    }
-
-    /**
      * @param tokens_ addresses of tokens to update
      * @param types new token types
      */
@@ -433,12 +419,11 @@ contract GarageSale is
     /**
      * @notice withdraw contract fees
      */
-    function withdraw() external onlyOwner {
-        uint256 f = fees;
-        require(f > 0, "zero fees");
-        fees = 0;
-        emit Withdrawn(f);
-        (bool sent, ) = payable(msg.sender).call{value: f}("");
+    function withdraw(uint256 amount) external onlyOwner {
+        require(amount > 0, "withdraw amount is zero");
+        require(amount < address(this).balance, "insufficient balance");
+        emit Withdrawn(amount);
+        (bool sent, ) = payable(msg.sender).call{value: amount}("");
         require(sent, "ether withdraw failed");
     }
 }
