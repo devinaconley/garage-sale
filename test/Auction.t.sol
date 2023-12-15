@@ -189,6 +189,31 @@ contract AuctionTest is Test {
         uint256 seed = gs.seed();
         // emit log_uint(seed);
 
+        // expect event
+        address[] memory tokens = new address[](4);
+        tokens[0] = address(erc1155);
+        tokens[1] = address(erc721);
+        tokens[2] = address(erc721);
+        tokens[3] = address(erc1155);
+        uint16[] memory types = new uint16[](4);
+        types[0] = 2;
+        types[1] = 1;
+        types[2] = 1;
+        types[3] = 2;
+        uint256[] memory ids = new uint256[](4);
+        ids[0] = 3;
+        ids[1] = 7;
+        ids[2] = 8;
+        ids[3] = 1;
+        uint256[] memory amounts = new uint256[](4);
+        amounts[0] = 42;
+        amounts[1] = 1;
+        amounts[2] = 1;
+        amounts[3] = 4000;
+        vm.expectEmit(address(gs));
+        emit GarageSale.Buy(alice, tokens, types, ids, amounts);
+
+        // buy
         vm.prank(alice);
         gs.buy{value: 0.082 ether}(seed); // expect items: 2, 1, 2(6), 3
 

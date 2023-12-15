@@ -23,7 +23,6 @@ contract GarageSale is
         uint256 id,
         uint256 amount
     );
-    // TODO could trim down some these events
     event Buy(
         address indexed buyer,
         address[] tokens,
@@ -176,6 +175,13 @@ contract GarageSale is
         return this.onERC1155BatchReceived.selector;
     }
 
+    /**
+     * @dev private helper function to process a received erc1155 item
+     * @param from address of token sender
+     * @param token address of erc1155 contract
+     * @param id token class id
+     * @param value token amount
+     */
     function _receiveERC1155(
         address from,
         address token,
@@ -195,6 +201,10 @@ contract GarageSale is
 
     // --- buy ----------------------------------------------------------------
 
+    /**
+     * @notice purchase the current token bundle on auction
+     * @param seed_ the seed of the current auction (to verify transaction intent)
+     */
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
         uint256 t = start();
@@ -205,7 +215,7 @@ contract GarageSale is
         uint256 bund = bundle;
         uint256 total = inventory.length;
         if (avail <= bund && total > bund) {
-            avail = bund + 1; // we can auto bump
+            avail = bund + 1; // we can auto bump to fixed value
         }
         require(avail > bund, "insufficient inventory");
 
@@ -264,6 +274,9 @@ contract GarageSale is
         emit Buy(msg.sender, addrs, types, ids, amounts);
     }
 
+    /**
+     * @notice get contents of current token bundle on auction
+     */
     function preview()
         external
         view
@@ -312,6 +325,9 @@ contract GarageSale is
         }
     }
 
+    /**
+     * @notice get the current dutch auction price
+     */
     function price() public view returns (uint256) {
         uint256 m = max;
         uint256 d = duration;
@@ -319,6 +335,9 @@ contract GarageSale is
         return m - ((m - min) * elapsed) / d;
     }
 
+    /**
+     * @notice get the current auction seed
+     */
     function seed() public view returns (uint256) {
         return _seed(start(), available);
     }
@@ -330,15 +349,18 @@ contract GarageSale is
         return uint256(keccak256(abi.encodePacked(start_, available_)));
     }
 
+    /**
+     * @notice get the start epoch time of the current auction
+     */
+    function start() public view returns (uint256) {
+        uint256 d = duration;
+        return d * (block.timestamp / d);
+    }
+
     // --- info ---------------------------------------------------------------
 
     function inventorySize() external view returns (uint256) {
         return inventory.length;
-    }
-
-    function start() public view returns (uint256) {
-        uint256 d = duration;
-        return d * (block.timestamp / d);
     }
 
     // --- configuration ------------------------------------------------------
