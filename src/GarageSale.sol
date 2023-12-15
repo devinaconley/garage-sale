@@ -32,7 +32,7 @@ contract GarageSale is
         uint256[] amounts
     );
     event OfferUpdated(uint256 offer);
-    event AuctionUpdated(uint256 min, uint256 max, uint256 duration);
+    event AuctionUpdated(uint96 min, uint96 max, uint32 duration);
     event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
     event Funded(uint256 amount);
@@ -51,8 +51,8 @@ contract GarageSale is
 
     // config
     uint256 public offer; // wei
-    uint256 public min; // wei
-    uint256 public max; // wei
+    uint96 public min; // wei
+    uint96 public max; // wei
     uint32 public duration; // seconds
     uint8 public bundle; // size
     address public controller;
@@ -110,11 +110,12 @@ contract GarageSale is
         bytes calldata /*data*/
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC721, "unknown token");
-        require(address(this).balance > offer, "insufficient funds");
+        uint256 offer_ = offer;
+        require(address(this).balance > offer_, "insufficient funds");
 
         inventory.push(Item(msg.sender, uint96(tokenId)));
 
-        (bool sent, ) = payable(from).call{value: offer}("");
+        (bool sent, ) = payable(from).call{value: offer_}("");
         require(sent, "ether transfer failed");
 
         emit Sell(from, msg.sender, uint16(TokenType.ERC721), tokenId, 1);
@@ -135,11 +136,12 @@ contract GarageSale is
         bytes calldata /*data*/
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
-        require(address(this).balance > offer, "insufficient funds");
+        uint256 offer_ = offer;
+        require(address(this).balance > offer_, "insufficient funds");
 
         _receiveERC1155(from, msg.sender, id, value);
 
-        (bool sent, ) = payable(from).call{value: offer}("");
+        (bool sent, ) = payable(from).call{value: offer_}("");
         require(sent, "ether transfer failed");
 
         return this.onERC1155Received.selector;
@@ -159,20 +161,16 @@ contract GarageSale is
         bytes calldata /*data*/
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
-        require(
-            address(this).balance > ids.length * offer,
-            "insufficient funds"
-        );
-        require(
-            ids.length == values.length,
-            "inconsistent id and value arrays"
-        );
+        uint256 count = ids.length;
+        uint256 offer_ = offer;
+        require(address(this).balance > count * offer_, "insufficient funds");
+        require(count == values.length, "inconsistent id and value arrays");
 
-        for (uint256 i; i < ids.length; i++) {
+        for (uint256 i; i < count; i++) {
             _receiveERC1155(from, msg.sender, ids[i], values[i]);
         }
 
-        (bool sent, ) = payable(from).call{value: ids.length * offer}("");
+        (bool sent, ) = payable(from).call{value: count * offer_}("");
         require(sent, "ether transfer failed");
 
         return this.onERC1155BatchReceived.selector;
@@ -200,39 +198,41 @@ contract GarageSale is
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
         uint256 avail = available;
-        if (avail <= bundle && inventory.length > bundle) {
-            avail = bundle + 1; // we can auto bump
+        uint8 bund = bundle;
+        uint256 total = inventory.length;
+        if (avail <= bund && total > bund) {
+            avail = bund + 1; // we can auto bump
         }
-        require(avail > bundle, "insufficient inventory");
+        require(avail > bund, "insufficient inventory");
         uint256 t = duration * (block.timestamp / duration);
         require(t > nonce, "already purchased");
         uint256 s = seed();
         require(seed_ == s, "stale transaction");
 
-        address[] memory addrs = new address[](bundle);
-        uint16[] memory types = new uint16[](bundle);
-        uint256[] memory ids = new uint256[](bundle);
-        uint256[] memory amounts = new uint256[](bundle);
+        address[] memory addrs = new address[](bund);
+        uint16[] memory types = new uint16[](bund);
+        uint256[] memory ids = new uint256[](bund);
+        uint256[] memory amounts = new uint256[](bund);
 
         // shuffle
-        for (uint256 i; i < bundle; i++) {
+        for (uint256 i; i < bund; i++) {
             // get item data
             uint256 r = s % (avail - i);
             addrs[i] = inventory[r].token;
             ids[i] = inventory[r].id;
             // backfill removed item
             inventory[r] = inventory[avail - i - 1];
-            if (inventory.length > avail - i) {
+            if (total > avail) {
                 // reindex new pending items
-                inventory[avail - i - 1] = inventory[inventory.length - 1];
+                inventory[avail - i - 1] = inventory[total - i - 1];
             }
             inventory.pop();
         }
-        available = inventory.length;
+        available = total - bund;
         nonce = t;
 
         // send all
-        for (uint256 i; i < bundle; i++) {
+        for (uint256 i; i < bund; i++) {
             TokenType type_ = tokens[addrs[i]];
             types[i] = uint16(type_);
             if (type_ == TokenType.ERC721) {
@@ -275,20 +275,21 @@ contract GarageSale is
         )
     {
         uint256 avail = available;
-        if (avail <= bundle && inventory.length > bundle) {
-            avail = bundle + 1; // we can auto bump
+        uint8 bund = bundle;
+        if (avail <= bund && inventory.length > bund) {
+            avail = bund + 1; // we can auto bump
         }
-        require(avail > bundle, "insufficient inventory");
+        require(avail > bund, "insufficient inventory");
 
-        tokens_ = new address[](bundle);
-        types = new uint16[](bundle);
-        ids = new uint256[](bundle);
-        amounts = new uint256[](bundle);
+        tokens_ = new address[](bund);
+        types = new uint16[](bund);
+        ids = new uint256[](bund);
+        amounts = new uint256[](bund);
 
         // preview shuffle
-        uint256[] memory rand = new uint256[](bundle);
+        uint256[] memory rand = new uint256[](bund);
         uint256 s = seed();
-        for (uint256 i; i < bundle; i++) {
+        for (uint256 i; i < bund; i++) {
             uint256 r = s % (avail - i);
             rand[i] = r;
             for (uint256 j = i; j > 0; j--) {
@@ -353,9 +354,9 @@ contract GarageSale is
      * @param duration_ new auction duration
      */
     function setAuction(
-        uint256 min_,
-        uint256 max_,
-        uint256 duration_
+        uint96 min_,
+        uint96 max_,
+        uint32 duration_
     ) external onlyController {
         require(min_ > bundle * offer, "min too low");
         require(min_ <= max_, "min is greater than max price");
