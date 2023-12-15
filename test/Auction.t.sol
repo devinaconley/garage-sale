@@ -442,6 +442,24 @@ contract AuctionTest is Test {
         assertEq(amounts[3], 4000);
     }
 
+    function test_PreviewAfterBuy() public {
+        vm.prank(alice);
+        erc721.safeTransferFrom(alice, address(gs), 3); // just padding some more inventory
+        vm.prank(alice);
+        erc721.safeTransferFrom(alice, address(gs), 4);
+        gs.bump();
+
+        uint256 t0 = 1702629000;
+        vm.warp(t0 + 180); // 3 minutes into auction window
+        uint256 seed = gs.seed();
+        vm.prank(alice);
+        gs.buy{value: 0.09 ether}(seed);
+
+        // preview
+        vm.expectRevert("already purchased");
+        gs.preview();
+    }
+
     function test_PreviewLowInventory() public {
         uint256 t0 = 1702629000; // 830a utc
         vm.warp(t0 + 180); // 3 minutes into auction window

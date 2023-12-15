@@ -197,17 +197,17 @@ contract GarageSale is
 
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
+        uint256 t = start();
+        require(t > nonce, "already purchased");
         uint256 avail = available;
+        uint256 s = _seed(t, avail);
+        require(seed_ == s, "stale transaction");
         uint256 bund = bundle;
         uint256 total = inventory.length;
         if (avail <= bund && total > bund) {
             avail = bund + 1; // we can auto bump
         }
         require(avail > bund, "insufficient inventory");
-        uint256 t = start();
-        require(t > nonce, "already purchased");
-        uint256 s = _seed(t);
-        require(seed_ == s, "stale transaction");
 
         address[] memory addrs = new address[](bund);
         uint16[] memory types = new uint16[](bund);
@@ -274,7 +274,11 @@ contract GarageSale is
             uint256[] memory amounts
         )
     {
+        uint256 t = start();
+        require(t > nonce, "already purchased");
         uint256 avail = available;
+        uint256 s = _seed(t, avail);
+
         uint256 bund = bundle;
         if (avail <= bund && inventory.length > bund) {
             avail = bund + 1; // we can auto bump
@@ -288,7 +292,7 @@ contract GarageSale is
 
         // preview shuffle
         uint256[] memory rand = new uint256[](bund);
-        uint256 s = seed();
+
         for (uint256 i; i < bund; i++) {
             uint256 r = s % (avail - i);
             rand[i] = r;
@@ -316,11 +320,14 @@ contract GarageSale is
     }
 
     function seed() public view returns (uint256) {
-        return _seed(start());
+        return _seed(start(), available);
     }
 
-    function _seed(uint256 start_) private view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(start_, available)));
+    function _seed(
+        uint256 start_,
+        uint256 available_
+    ) private pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(start_, available_)));
     }
 
     // --- info ---------------------------------------------------------------
