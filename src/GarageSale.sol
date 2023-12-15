@@ -198,15 +198,15 @@ contract GarageSale is
     function buy(uint256 seed_) external payable nonReentrant {
         require(msg.value >= price(), "insufficient payment");
         uint256 avail = available;
-        uint8 bund = bundle;
+        uint256 bund = bundle;
         uint256 total = inventory.length;
         if (avail <= bund && total > bund) {
             avail = bund + 1; // we can auto bump
         }
         require(avail > bund, "insufficient inventory");
-        uint256 t = duration * (block.timestamp / duration);
+        uint256 t = start();
         require(t > nonce, "already purchased");
-        uint256 s = seed();
+        uint256 s = _seed(t);
         require(seed_ == s, "stale transaction");
 
         address[] memory addrs = new address[](bund);
@@ -275,7 +275,7 @@ contract GarageSale is
         )
     {
         uint256 avail = available;
-        uint8 bund = bundle;
+        uint256 bund = bundle;
         if (avail <= bund && inventory.length > bund) {
             avail = bund + 1; // we can auto bump
         }
@@ -309,20 +309,18 @@ contract GarageSale is
     }
 
     function price() public view returns (uint256) {
-        uint256 elapsed = block.timestamp % duration;
-        return max - ((max - min) * elapsed) / duration;
+        uint256 m = max;
+        uint256 d = duration;
+        uint256 elapsed = block.timestamp % d;
+        return m - ((m - min) * elapsed) / d;
     }
 
     function seed() public view returns (uint256) {
-        return
-            uint256(
-                keccak256(
-                    abi.encodePacked(
-                        duration * (block.timestamp / duration),
-                        available
-                    )
-                )
-            );
+        return _seed(start());
+    }
+
+    function _seed(uint256 start_) private view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(start_, available)));
     }
 
     // --- info ---------------------------------------------------------------
@@ -332,7 +330,8 @@ contract GarageSale is
     }
 
     function start() public view returns (uint256) {
-        return duration * (block.timestamp / duration);
+        uint256 d = duration;
+        return d * (block.timestamp / d);
     }
 
     // --- configuration ------------------------------------------------------
