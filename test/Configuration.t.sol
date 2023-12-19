@@ -76,10 +76,43 @@ contract ConfigurationTest is Test {
         assertEq(gs.duration(), 1800);
     }
 
+    function test_AuctionConfigMinLow() public {
+        vm.expectRevert("min too low");
+        gs.setAuction(5e11, 2e17, 900);
+    }
+
+    function test_AuctionConfigMinMaxInvalid() public {
+        vm.expectRevert("min is greater than max price");
+        gs.setAuction(2e16, 1e16, 900);
+    }
+
+    function test_AuctionConfigDurationLow() public {
+        vm.expectRevert("duration too low");
+        gs.setAuction(2e16, 4e16, 59);
+    }
+
     function test_AuctionUnauthorized() public {
         vm.expectRevert("sender is not controller");
         vm.prank(alice);
         gs.setAuction(5e14, 2e17, 1800);
+    }
+
+    function test_BundleSize() public {
+        vm.expectEmit(address(gs));
+        emit GarageSale.BundleUpdated(8);
+        gs.setBundle(8);
+        assertEq(gs.bundle(), 8);
+    }
+
+    function test_BundleSizeZero() public {
+        vm.expectRevert("bundle size is zero");
+        gs.setBundle(0);
+    }
+
+    function test_BundleSizeUnauthorized() public {
+        vm.expectRevert("sender is not controller");
+        vm.prank(alice);
+        gs.setBundle(8);
     }
 
     function test_TokenWhitelist() public {

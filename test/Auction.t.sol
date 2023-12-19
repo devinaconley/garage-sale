@@ -600,6 +600,8 @@ contract AuctionTest is Test {
 
         // eoa to receive eth
         gs.transferOwnership(bob);
+        vm.prank(bob);
+        gs.acceptOwnership(); // 2 step
         uint256 ownerPrev = bob.balance;
         uint256 contractPrev = address(gs).balance;
 

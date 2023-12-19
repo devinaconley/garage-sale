@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -10,7 +10,7 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 contract GarageSale is
-    Ownable,
+    Ownable2Step,
     IERC721Receiver,
     IERC1155Receiver,
     ReentrancyGuard
@@ -32,8 +32,10 @@ contract GarageSale is
     );
     event OfferUpdated(uint256 offer);
     event AuctionUpdated(uint96 min, uint96 max, uint32 duration);
+    event BundleUpdated(uint8 bundle);
     event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
+    event InventoryUpdated(uint256 inventory);
     event Funded(uint256 amount);
     event Withdrawn(uint256 amount);
 
@@ -110,7 +112,7 @@ contract GarageSale is
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC721, "unknown token");
         uint256 offer_ = offer;
-        require(address(this).balance > offer_, "insufficient funds");
+        require(address(this).balance >= offer_, "insufficient funds");
 
         inventory.push(Item(msg.sender, uint96(tokenId)));
 
@@ -136,7 +138,7 @@ contract GarageSale is
     ) external nonReentrant returns (bytes4) {
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
         uint256 offer_ = offer;
-        require(address(this).balance > offer_, "insufficient funds");
+        require(address(this).balance >= offer_, "insufficient funds");
 
         _receiveERC1155(from, msg.sender, id, value);
 
@@ -162,7 +164,7 @@ contract GarageSale is
         require(tokens[msg.sender] == TokenType.ERC1155, "unknown token");
         uint256 count = ids.length;
         uint256 offer_ = offer;
-        require(address(this).balance > count * offer_, "insufficient funds");
+        require(address(this).balance >= count * offer_, "insufficient funds");
         require(count == values.length, "inconsistent id and value arrays");
 
         for (uint256 i; i < count; i++) {
@@ -388,10 +390,20 @@ contract GarageSale is
     ) external onlyController {
         require(min_ > bundle * offer, "min too low");
         require(min_ <= max_, "min is greater than max price");
+        require(duration_ >= 60, "duration too low");
         min = min_;
         max = max_;
         duration = uint32(duration_);
         emit AuctionUpdated(min_, max_, duration_);
+    }
+
+    /**
+     * @param bundle_ new bundle size for auction
+     */
+    function setBundle(uint8 bundle_) public onlyController {
+        require(bundle_ > 0, "bundle size is zero");
+        bundle = bundle_;
+        emit BundleUpdated(bundle_);
     }
 
     /**
@@ -435,6 +447,7 @@ contract GarageSale is
      */
     function bump() external onlyController {
         available = uint128(inventory.length);
+        emit InventoryUpdated(available);
     }
 
     /**
