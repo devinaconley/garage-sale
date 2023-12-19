@@ -9,6 +9,12 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
+/**
+ * @title Garage Sale
+ *
+ * @notice this contract implements a simple "garage sale" protocol to facilitate
+ * the resale of low value NFTs in shuffled bundles via ongoing dutch auctions.
+ */
 contract GarageSale is
     Ownable2Step,
     IERC721Receiver,
@@ -370,7 +376,7 @@ contract GarageSale is
     /**
      * @param offer_ new offer price (in wei) to sell a token to the protocol
      */
-    function setOffer(uint256 offer_) public onlyController {
+    function setOffer(uint256 offer_) external onlyController {
         require(offer_ > 0, "offer is zero");
         require(offer_ < min / bundle, "offer too high");
         offer = offer_;
@@ -393,14 +399,14 @@ contract GarageSale is
         require(duration_ >= 60, "duration too low");
         min = min_;
         max = max_;
-        duration = uint32(duration_);
+        duration = duration_;
         emit AuctionUpdated(min_, max_, duration_);
     }
 
     /**
      * @param bundle_ new bundle size for auction
      */
-    function setBundle(uint8 bundle_) public onlyController {
+    function setBundle(uint8 bundle_) external onlyController {
         require(bundle_ > 0, "bundle size is zero");
         bundle = bundle_;
         emit BundleUpdated(bundle_);
