@@ -35,7 +35,7 @@ contract GarageSale is
     event BundleUpdated(uint8 bundle);
     event TokenUpdated(address indexed token, uint16 type_);
     event ControllerUpdated(address controller);
-    event InventoryUpdated(uint256 inventory);
+    event InventoryUpdated(uint192 inventory);
     event Funded(uint256 amount);
     event Withdrawn(uint256 amount);
 
@@ -62,8 +62,8 @@ contract GarageSale is
     mapping(address => TokenType) public tokens;
     Item[] public inventory;
     mapping(uint256 => bool) public exists; // need this for ERC1155 only
-    uint256 public available; // last inventory size
-    uint256 public nonce; // last auction window purchased
+    uint192 public available; // last inventory size
+    uint64 public nonce; // last auction window purchased
 
     /**
      * @notice initialize garage sale contract with reasonable defaults
@@ -240,8 +240,8 @@ contract GarageSale is
             }
             inventory.pop();
         }
-        available = total - bund;
-        nonce = t;
+        available = uint192(total - bund);
+        nonce = uint64(t);
 
         // send all
         for (uint256 i; i < bund; i++) {
@@ -446,7 +446,7 @@ contract GarageSale is
      * @notice update data to refresh inventory
      */
     function bump() external onlyController {
-        available = uint128(inventory.length);
+        available = uint192(inventory.length);
         emit InventoryUpdated(available);
     }
 
@@ -463,7 +463,7 @@ contract GarageSale is
      */
     function withdraw(uint256 amount) external onlyOwner {
         require(amount > 0, "withdraw amount is zero");
-        require(amount < address(this).balance, "insufficient balance");
+        require(amount <= address(this).balance, "insufficient balance");
         emit Withdrawn(amount);
         (bool sent, ) = payable(msg.sender).call{value: amount}("");
         require(sent, "ether withdraw failed");
