@@ -767,4 +767,130 @@ contract AuctionTest is Test {
         assertEq(amounts[6], 42);
         assertEq(amounts[7], 1);
     }
+
+    function test_BuyBad() public {
+        TestERC721 bad = new TestERC721("BadERC721", "BAD");
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(bad);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
+
+        bad.mint(alice, 3);
+        vm.prank(alice);
+        bad.safeTransferFrom(alice, address(gs), 1);
+        vm.prank(alice);
+        bad.safeTransferFrom(alice, address(gs), 2);
+        gs.bump();
+
+        types[0] = 0;
+        gs.setTokens(tokens, types); // later remove misbehaving token
+        // (but items already in inventory)
+        // inventory: [..., bad:1, bad:2]
+
+        uint256 t0 = 1767096000;
+        vm.warp(t0 + 810); // 810 seconds in, price @ 0.019
+        uint256 seed = gs.seed();
+        // emit log_uint(seed);
+
+        address charlie = address(0xcccc);
+        vm.deal(charlie, 1e18);
+
+        // expect event
+        tokens = new address[](4);
+        tokens[0] = address(bad);
+        tokens[1] = address(erc721);
+        tokens[2] = address(bad);
+        tokens[3] = address(erc1155);
+        types = new uint16[](4);
+        types[0] = 0; // unknown
+        types[1] = 1;
+        types[2] = 0; // unknown
+        types[3] = 2;
+        uint256[] memory ids = new uint256[](4);
+        ids[0] = 2;
+        ids[1] = 2;
+        ids[2] = 1;
+        ids[3] = 3;
+        uint256[] memory amounts = new uint256[](4);
+        amounts[0] = 0; // indicate bad
+        amounts[1] = 1;
+        amounts[2] = 0; // indicate bad
+        amounts[3] = 42;
+        vm.expectEmit(address(gs));
+        emit GarageSale.Buy(charlie, tokens, types, ids, amounts);
+
+        // buy
+        vm.prank(charlie);
+        gs.buy{value: 0.02 ether}(seed); // expect items: 8, 4, 4(7), 2
+
+        // verify
+        assertEq(gs.inventorySize(), 5); // should still remove bad item from inventory
+        assertEq(gs.available(), 5);
+        assertEq(gs.nonce(), t0);
+
+        assertEq(bad.ownerOf(2), address(gs)); // leave stranded in contract
+        assertEq(erc721.ownerOf(2), charlie);
+        assertEq(bad.ownerOf(1), address(gs)); // leave stranded in contract
+        assertEq(erc1155.balanceOf(charlie, 3), 42);
+        assertEq(erc1155.balanceOf(address(gs), 3), 0);
+    }
+
+    function test_PreviewBad() public {
+        TestERC721 bad = new TestERC721("BadERC721", "BAD");
+
+        address[] memory tokens_ = new address[](1);
+        tokens_[0] = address(bad);
+        uint16[] memory types_ = new uint16[](1);
+        types_[0] = 1;
+        gs.setTokens(tokens_, types_);
+
+        bad.mint(alice, 3);
+        vm.prank(alice);
+        bad.safeTransferFrom(alice, address(gs), 1);
+        vm.prank(alice);
+        bad.safeTransferFrom(alice, address(gs), 2);
+        gs.bump();
+
+        types_[0] = 0;
+        gs.setTokens(tokens_, types_); // later remove misbehaving token
+        // (but items already in inventory)
+        // inventory: [..., bad:1, bad:2]
+
+        uint256 t0 = 1767096000;
+        vm.warp(t0 + 450);
+
+        // expect: 8, 4, 4(7), 2
+        (
+            address[] memory tokens,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        ) = gs.preview();
+
+        assertEq(tokens.length, 4);
+        assertEq(tokens[0], address(bad));
+        assertEq(tokens[1], address(erc721));
+        assertEq(tokens[2], address(bad));
+        assertEq(tokens[3], address(erc1155));
+
+        assertEq(types.length, 4);
+        assertEq(types[0], 0); // unknown
+        assertEq(types[1], 1);
+        assertEq(types[2], 0); // unknown
+        assertEq(types[3], 2);
+
+        assertEq(ids.length, 4);
+        assertEq(ids[0], 2);
+        assertEq(ids[1], 2);
+        assertEq(ids[2], 1);
+        assertEq(ids[3], 3);
+
+        assertEq(amounts.length, 4);
+        assertEq(amounts[0], 0); // bad
+        assertEq(amounts[1], 1);
+        assertEq(amounts[2], 0); // bad
+        assertEq(amounts[3], 42);
+    }
 }

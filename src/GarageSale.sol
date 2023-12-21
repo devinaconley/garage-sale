@@ -7,7 +7,6 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 /**
  * @title Garage Sale
@@ -260,7 +259,7 @@ contract GarageSale is
                     msg.sender,
                     ids[i]
                 );
-            } else {
+            } else if (type_ == TokenType.ERC1155) {
                 // get full balance
                 IERC1155 tkn = IERC1155(addrs[i]);
                 uint256 bal = tkn.balanceOf(address(this), ids[i]);
@@ -278,6 +277,7 @@ contract GarageSale is
                     ""
                 );
             }
+            // else {} // pass if token no longer registered
         }
         emit Buy(msg.sender, addrs, types, ids, amounts);
     }
@@ -324,12 +324,19 @@ contract GarageSale is
                 }
             }
             Item storage item = inventory[r];
+            TokenType type_ = tokens[item.token];
             tokens_[i] = item.token;
-            types[i] = uint16(tokens[item.token]);
+            types[i] = uint16(type_);
             ids[i] = item.id;
-            amounts[i] = tokens[item.token] == TokenType.ERC721
-                ? 1
-                : IERC1155(item.token).balanceOf(address(this), item.id);
+            if (type_ == TokenType.ERC721) {
+                amounts[i] = 1;
+            } else if (type_ == TokenType.ERC1155) {
+                amounts[i] = IERC1155(item.token).balanceOf(
+                    address(this),
+                    item.id
+                );
+            }
+            // else {} // pass if token no longer registered
         }
     }
 
@@ -427,15 +434,24 @@ contract GarageSale is
                 types[i] <= uint16(TokenType.ERC1155),
                 "token type is invalid"
             );
-            bytes4 interface_ = types[i] == uint16(TokenType.ERC721)
-                ? type(IERC721).interfaceId
-                : type(IERC1155).interfaceId;
-            require(
-                IERC165(tokens_[i]).supportsInterface(interface_),
-                "token does not support expected interface"
-            );
+            TokenType type_ = TokenType(types[i]);
+            if (type_ == TokenType.ERC721) {
+                require(
+                    IERC721(tokens_[i]).supportsInterface(
+                        type(IERC721).interfaceId
+                    ),
+                    "token does not support erc721 interface"
+                );
+            } else if (type_ == TokenType.ERC1155) {
+                require(
+                    IERC1155(tokens_[i]).supportsInterface(
+                        type(IERC1155).interfaceId
+                    ),
+                    "token does not support erc1155 interface"
+                );
+            }
 
-            tokens[tokens_[i]] = TokenType(types[i]);
+            tokens[tokens_[i]] = type_;
             emit TokenUpdated(tokens_[i], types[i]);
         }
     }

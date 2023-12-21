@@ -202,7 +202,7 @@ contract ConfigurationTest is Test {
         uint16[] memory types = new uint16[](1);
         types[0] = 1;
 
-        vm.expectRevert("token does not support expected interface");
+        vm.expectRevert("token does not support erc721 interface");
         gs.setTokens(tokens, types);
     }
 
