@@ -16,7 +16,7 @@ contract AuctionTest is Test {
     address bob;
 
     function setUp() public {
-        gs = new GarageSale();
+        gs = new GarageSale(address(this));
         erc721 = new TestERC721("TestERC721", "NFT");
         erc1155 = new TestERC1155();
         alice = address(0xa11ce);

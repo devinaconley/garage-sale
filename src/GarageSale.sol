@@ -72,14 +72,15 @@ contract GarageSale is
 
     /**
      * @notice initialize garage sale contract with reasonable defaults
+     * @param owner address of initial owner
      */
-    constructor() Ownable(msg.sender) {
+    constructor(address owner) Ownable(owner) {
         offer = 1e12; // 0.000001 ether
         min = 1e16; // 0.01 ether
         max = 1e17; // 0.1 ether
         duration = 15 * 60; // 15 minutes
         bundle = 4;
-        controller = msg.sender;
+        controller = owner;
     }
 
     modifier onlyController() {
@@ -91,7 +92,7 @@ contract GarageSale is
     }
 
     /**
-     * erc165 check for standard interface support
+     * @notice erc165 check for standard interface support
      * @param interfaceId interface id in question
      */
     function supportsInterface(
