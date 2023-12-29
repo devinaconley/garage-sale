@@ -49,7 +49,7 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc721.balanceOf(alice), 4);
         assertEq(erc721.ownerOf(3), address(gs));
-        (address tkn, uint96 id) = gs.inventory(0);
+        (address tkn, uint256 id) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 3);
         assertEq(gs.inventorySize(), 1);
@@ -81,7 +81,7 @@ contract SellTest is Test {
         assertEq(erc721.balanceOf(bob), 1);
         assertEq(erc721.ownerOf(3), address(gs));
         assertEq(erc721.ownerOf(6), address(gs));
-        (address tkn, uint96 id) = gs.inventory(0);
+        (address tkn, uint256 id) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 3);
         (tkn, id) = gs.inventory(1);
@@ -145,11 +145,10 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc1155.balanceOf(alice, 1), 4000);
         assertEq(erc1155.balanceOf(address(gs), 1), 1000);
-        (address tkn, uint96 id) = gs.inventory(0);
+        (address tkn, uint256 id) = gs.inventory(0);
         assertEq(tkn, address(erc1155));
         assertEq(id, 1);
-        uint256 key = uint256(uint160(address(erc1155)));
-        key |= uint256(1) << 160;
+        bytes32 key = keccak256(abi.encodePacked(address(erc1155), uint256(1)));
         assertEq(gs.exists(key), true);
         assertEq(gs.inventorySize(), 1);
     }
@@ -174,12 +173,11 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc1155.balanceOf(alice, 1), 4000);
         assertEq(erc1155.balanceOf(address(gs), 1), 1000);
-        (address tkn, uint96 id) = gs.inventory(0);
+        (address tkn, uint256 id) = gs.inventory(0);
         assertEq(tkn, address(erc1155));
         vm.expectRevert();
         (tkn, id) = gs.inventory(1); // should not create new item
-        uint256 key = uint256(uint160(address(erc1155)));
-        key |= uint256(1) << 160;
+        bytes32 key = keccak256(abi.encodePacked(address(erc1155), uint256(1)));
         assertEq(gs.exists(key), true);
         assertEq(gs.inventorySize(), 1);
     }
@@ -307,7 +305,7 @@ contract SellTest is Test {
 
         assertEq(gs.inventorySize(), 5);
 
-        (address tkn, uint96 id) = gs.inventory(0);
+        (address tkn, uint256 id) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 5);
         (tkn, id) = gs.inventory(1);

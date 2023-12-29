@@ -239,11 +239,9 @@ contract AuctionTest is Test {
         assertEq(tkn, address(erc721));
         assertEq(id, 2);
 
-        uint256 key = uint256(uint160(address(erc1155)));
-        key |= uint256(3) << 160;
+        bytes32 key = keccak256(abi.encodePacked(address(erc1155), uint256(3)));
         assertEq(gs.exists(key), false); // should be cleared
-        key = uint256(uint160(address(erc1155)));
-        key |= uint256(1) << 160;
+        key = keccak256(abi.encodePacked(address(erc1155), uint256(1)));
         assertEq(gs.exists(key), false);
     }
 

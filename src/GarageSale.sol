@@ -52,7 +52,7 @@ contract GarageSale is
     }
     struct Item {
         address token;
-        uint96 id;
+        uint256 id;
     }
 
     // config
@@ -66,7 +66,7 @@ contract GarageSale is
     // data
     mapping(address => TokenType) public tokens;
     Item[] public inventory;
-    mapping(uint256 => bool) public exists; // need this for ERC1155 only
+    mapping(bytes32 => bool) public exists; // need this for ERC1155 only
     uint192 public available; // last inventory size
     uint64 public nonce; // last auction window purchased
 
@@ -120,7 +120,7 @@ contract GarageSale is
         uint256 offer_ = offer;
         require(address(this).balance >= offer_, "insufficient funds");
 
-        inventory.push(Item(msg.sender, uint96(tokenId)));
+        inventory.push(Item(msg.sender, tokenId));
 
         (bool sent, ) = payable(from).call{value: offer_}("");
         require(sent, "ether transfer failed");
@@ -197,10 +197,9 @@ contract GarageSale is
         uint256 value
     ) private {
         // add item to inventory only if it doesn't already exist
-        uint256 key = uint256(uint160(token));
-        key |= uint256(id) << 160;
+        bytes32 key = keccak256(abi.encodePacked(token, id));
         if (!exists[key]) {
-            inventory.push(Item(token, uint96(id)));
+            inventory.push(Item(token, id));
             exists[key] = true;
         }
         // emit
@@ -266,8 +265,7 @@ contract GarageSale is
                 uint256 bal = tkn.balanceOf(address(this), ids[i]);
                 amounts[i] = bal;
                 // clear exists key
-                uint256 key = uint256(uint160(addrs[i]));
-                key |= uint256(ids[i]) << 160;
+                bytes32 key = keccak256(abi.encodePacked(addrs[i], ids[i]));
                 exists[key] = false;
                 // send all
                 tkn.safeTransferFrom(
