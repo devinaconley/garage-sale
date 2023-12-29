@@ -229,13 +229,13 @@ contract AuctionTest is Test {
         assertEq(erc1155.balanceOf(alice, 1), 6000); // 2000 already held + 4000 combined in bundle
         assertEq(erc1155.balanceOf(address(gs), 1), 0);
 
-        (address tkn, uint256 id) = gs.inventory(0); // 0th
+        (address tkn, uint96 id, ) = gs.inventory(0); // 0th
         assertEq(tkn, address(erc721));
         assertEq(id, 5);
-        (tkn, id) = gs.inventory(1); // 6th backfill
+        (tkn, id, ) = gs.inventory(1); // 6th backfill
         assertEq(tkn, address(erc721));
         assertEq(id, 6);
-        (tkn, id) = gs.inventory(2); // 5th backfill
+        (tkn, id, ) = gs.inventory(2); // 5th backfill
         assertEq(tkn, address(erc721));
         assertEq(id, 2);
 
@@ -303,19 +303,19 @@ contract AuctionTest is Test {
         assertEq(erc1155.balanceOf(address(gs), 3), 0);
         assertEq(erc721.ownerOf(8), charlie); // 3(6)
 
-        (address tkn, uint256 id) = gs.inventory(0); // 0th, original
+        (address tkn, uint96 id, ) = gs.inventory(0); // 0th, original
         assertEq(tkn, address(erc721));
         assertEq(id, 5);
-        (tkn, id) = gs.inventory(1); // 1st, original
+        (tkn, id, ) = gs.inventory(1); // 1st, original
         assertEq(tkn, address(erc721));
         assertEq(id, 7);
-        (tkn, id) = gs.inventory(2); // 5th slot backfill, included in shuffle
+        (tkn, id, ) = gs.inventory(2); // 5th slot backfill, included in shuffle
         assertEq(tkn, address(erc721));
         assertEq(id, 2);
-        (tkn, id) = gs.inventory(4); // 8th slot backfill, from pending
+        (tkn, id, ) = gs.inventory(4); // 8th slot backfill, from pending
         assertEq(tkn, address(erc721));
         assertEq(id, 4);
-        (tkn, id) = gs.inventory(3); // 7th slot backfill, from pending
+        (tkn, id, ) = gs.inventory(3); // 7th slot backfill, from pending
         assertEq(tkn, address(erc721));
         assertEq(id, 3);
     }
@@ -423,7 +423,7 @@ contract AuctionTest is Test {
         assertEq(erc1155.balanceOf(address(gs), 2), 0);
         assertEq(erc721.balanceOf(charlie), 3);
 
-        (address tkn, uint256 id) = gs.inventory(0); // only item remaining
+        (address tkn, uint96 id, ) = gs.inventory(0); // only item remaining
         assertEq(tkn, address(erc721));
         assertEq(id, 4);
         assertEq(erc721.balanceOf(address(gs)), 1);
@@ -889,6 +889,112 @@ contract AuctionTest is Test {
         assertEq(amounts[0], 0); // bad
         assertEq(amounts[1], 1);
         assertEq(amounts[2], 0); // bad
+        assertEq(amounts[3], 42);
+    }
+
+    function test_BuyBig() public {
+        erc1155.mint(alice, 1e30 + 5, 1000);
+        erc1155.mint(alice, 1e48 + 123, 500);
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 1e30 + 5, 1000, "");
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 1e48 + 123, 500, "");
+        gs.bump();
+        // inventory: [..., erc1155:1e30+5:1000, erc1155:1e48+123:500]
+
+        uint256 t0 = 1767096000;
+        vm.warp(t0 + 810); // 810 seconds in, price @ 0.019
+        uint256 seed = gs.seed();
+
+        address charlie = address(0xcccc);
+        vm.deal(charlie, 1e18);
+
+        // expect event
+        address[] memory tokens = new address[](4);
+        tokens[0] = address(erc1155);
+        tokens[1] = address(erc721);
+        tokens[2] = address(erc1155);
+        tokens[3] = address(erc1155);
+        uint16[] memory types = new uint16[](4);
+        types[0] = 2;
+        types[1] = 1;
+        types[2] = 2;
+        types[3] = 2;
+        uint256[] memory ids = new uint256[](4);
+        ids[0] = 1e48 + 123; // id256
+        ids[1] = 2;
+        ids[2] = 1e30 + 5; // id256
+        ids[3] = 3;
+        uint256[] memory amounts = new uint256[](4);
+        amounts[0] = 500;
+        amounts[1] = 1;
+        amounts[2] = 1000;
+        amounts[3] = 42;
+        vm.expectEmit(address(gs));
+        emit GarageSale.Buy(charlie, tokens, types, ids, amounts);
+
+        // buy
+        vm.prank(charlie);
+        gs.buy{value: 0.02 ether}(seed); // expect items: 8, 4, 4(7), 2
+
+        // verify
+        assertEq(gs.inventorySize(), 5);
+        assertEq(gs.available(), 5);
+        assertEq(gs.nonce(), t0);
+
+        assertEq(erc1155.balanceOf(charlie, 1e48 + 123), 500);
+        assertEq(erc1155.balanceOf(address(gs), 1e48 + 123), 0);
+        assertEq(erc721.ownerOf(2), charlie);
+        assertEq(erc1155.balanceOf(charlie, 1e30 + 5), 1000);
+        assertEq(erc1155.balanceOf(address(gs), 1e30 + 5), 0);
+        assertEq(erc1155.balanceOf(charlie, 3), 42);
+        assertEq(erc1155.balanceOf(address(gs), 3), 0);
+    }
+
+    function test_PreviewBig() public {
+        erc1155.mint(alice, 1e30 + 5, 1000);
+        erc1155.mint(alice, 1e48 + 123, 500);
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 1e30 + 5, 1000, "");
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 1e48 + 123, 500, "");
+        gs.bump();
+        // inventory: [..., erc1155:1e30+5:1000, erc1155:1e48+123:500]
+
+        uint256 t0 = 1767096000;
+        vm.warp(t0 + 450);
+        // emit log_uint(gs.seed());
+
+        // expect: 8, 4, 4(7), 2
+        (
+            address[] memory tokens,
+            uint16[] memory types,
+            uint256[] memory ids,
+            uint256[] memory amounts
+        ) = gs.preview();
+
+        assertEq(tokens.length, 4);
+        assertEq(tokens[0], address(erc1155));
+        assertEq(tokens[1], address(erc721));
+        assertEq(tokens[2], address(erc1155));
+        assertEq(tokens[3], address(erc1155));
+
+        assertEq(types.length, 4);
+        assertEq(types[0], 2);
+        assertEq(types[1], 1);
+        assertEq(types[2], 2);
+        assertEq(types[3], 2);
+
+        assertEq(ids.length, 4);
+        assertEq(ids[0], 1e48 + 123); // id256
+        assertEq(ids[1], 2);
+        assertEq(ids[2], 1e30 + 5); // id256
+        assertEq(ids[3], 3);
+
+        assertEq(amounts.length, 4);
+        assertEq(amounts[0], 500);
+        assertEq(amounts[1], 1);
+        assertEq(amounts[2], 1000);
         assertEq(amounts[3], 42);
     }
 }

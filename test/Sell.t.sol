@@ -6,6 +6,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import {GarageSale} from "../src/GarageSale.sol";
 import {TestERC721} from "../src/test/ERC721.sol";
 import {TestERC1155} from "../src/test/ERC1155.sol";
+import {TestERC721Big} from "../src/test/ERC721Big.sol";
 import {BulkSend} from "../src/test/BulkSend.sol";
 
 contract SellTest is Test {
@@ -49,7 +50,7 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc721.balanceOf(alice), 4);
         assertEq(erc721.ownerOf(3), address(gs));
-        (address tkn, uint256 id) = gs.inventory(0);
+        (address tkn, uint96 id, ) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 3);
         assertEq(gs.inventorySize(), 1);
@@ -81,10 +82,10 @@ contract SellTest is Test {
         assertEq(erc721.balanceOf(bob), 1);
         assertEq(erc721.ownerOf(3), address(gs));
         assertEq(erc721.ownerOf(6), address(gs));
-        (address tkn, uint256 id) = gs.inventory(0);
+        (address tkn, uint256 id, ) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 3);
-        (tkn, id) = gs.inventory(1);
+        (tkn, id, ) = gs.inventory(1);
         assertEq(tkn, address(erc721));
         assertEq(id, 6);
         assertEq(gs.inventorySize(), 2);
@@ -145,7 +146,7 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc1155.balanceOf(alice, 1), 4000);
         assertEq(erc1155.balanceOf(address(gs), 1), 1000);
-        (address tkn, uint256 id) = gs.inventory(0);
+        (address tkn, uint96 id, ) = gs.inventory(0);
         assertEq(tkn, address(erc1155));
         assertEq(id, 1);
         bytes32 key = keccak256(abi.encodePacked(address(erc1155), uint256(1)));
@@ -173,10 +174,10 @@ contract SellTest is Test {
         assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
         assertEq(erc1155.balanceOf(alice, 1), 4000);
         assertEq(erc1155.balanceOf(address(gs), 1), 1000);
-        (address tkn, uint256 id) = gs.inventory(0);
+        (address tkn, uint96 id, ) = gs.inventory(0);
         assertEq(tkn, address(erc1155));
         vm.expectRevert();
-        (tkn, id) = gs.inventory(1); // should not create new item
+        (tkn, id, ) = gs.inventory(1); // should not create new item
         bytes32 key = keccak256(abi.encodePacked(address(erc1155), uint256(1)));
         assertEq(gs.exists(key), true);
         assertEq(gs.inventorySize(), 1);
@@ -305,19 +306,19 @@ contract SellTest is Test {
 
         assertEq(gs.inventorySize(), 5);
 
-        (address tkn, uint256 id) = gs.inventory(0);
+        (address tkn, uint96 id, ) = gs.inventory(0);
         assertEq(tkn, address(erc721));
         assertEq(id, 5);
-        (tkn, id) = gs.inventory(1);
+        (tkn, id, ) = gs.inventory(1);
         assertEq(tkn, address(erc721));
         assertEq(id, 7);
-        (tkn, id) = gs.inventory(2);
+        (tkn, id, ) = gs.inventory(2);
         assertEq(tkn, address(erc1155));
         assertEq(id, 3);
-        (tkn, id) = gs.inventory(3);
+        (tkn, id, ) = gs.inventory(3);
         assertEq(tkn, address(erc1155));
         assertEq(id, 1);
-        (tkn, id) = gs.inventory(4);
+        (tkn, id, ) = gs.inventory(4);
         assertEq(tkn, address(erc721));
         assertEq(id, 2);
     }
@@ -361,5 +362,66 @@ contract SellTest is Test {
         assertEq(erc721.balanceOf(address(gs)), 5);
         assertEq(erc721.ownerOf(3), address(gs));
         assertEq(gs.inventorySize(), 5);
+    }
+
+    function test_SellBigERC721() public {
+        // setup
+        TestERC721Big erc721big = new TestERC721Big("Big Token", "BIG");
+        erc721big.mint(alice, 5);
+        vm.deal(address(gs), 1e18); // fund contract
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc721big);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 1;
+        gs.setTokens(tokens, types);
+
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc721big), 1, 1e30 + 2, 1);
+
+        // sell
+        vm.prank(alice);
+        erc721big.safeTransferFrom(alice, address(gs), 1e30 + 2);
+
+        // verify
+        assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
+        assertEq(erc721big.balanceOf(alice), 4);
+        assertEq(erc721big.ownerOf(1e30 + 2), address(gs));
+        (address tkn, uint96 id, uint256 id256) = gs.inventory(0);
+        assertEq(tkn, address(erc721big));
+        assertEq(id, 0); // unset
+        assertEq(id256, 1e30 + 2);
+        assertEq(gs.inventorySize(), 1);
+    }
+
+    function test_SellBigERC1155() public {
+        // setup
+        erc1155.mint(alice, 1e48 + 123, 500);
+        vm.deal(address(gs), 1e18); // fund contract
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc1155);
+        uint16[] memory types = new uint16[](1);
+        types[0] = 2;
+        gs.setTokens(tokens, types);
+
+        vm.expectEmit(address(gs));
+        emit GarageSale.Sell(alice, address(erc1155), 2, 1e48 + 123, 500);
+
+        // sell
+        vm.prank(alice);
+        erc1155.safeTransferFrom(alice, address(gs), 1e48 + 123, 500, "");
+
+        // verify
+        assertEq(address(gs).balance, 1e18 - 1e12); // 0.999999
+        assertEq(erc1155.balanceOf(alice, 1e48 + 123), 0);
+        assertEq(erc1155.balanceOf(address(gs), 1e48 + 123), 500);
+        (address tkn, uint96 id, uint256 id256) = gs.inventory(0);
+        assertEq(tkn, address(erc1155));
+        assertEq(id, 0); // unset
+        assertEq(id256, 1e48 + 123);
+        bytes32 key = keccak256(
+            abi.encodePacked(address(erc1155), uint256(1e48 + 123))
+        );
+        assertEq(gs.exists(key), true);
+        assertEq(gs.inventorySize(), 1);
     }
 }

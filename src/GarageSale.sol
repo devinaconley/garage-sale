@@ -52,7 +52,8 @@ contract GarageSale is
     }
     struct Item {
         address token;
-        uint256 id;
+        uint96 id; // prefer
+        uint256 id256;
     }
 
     // config
@@ -119,8 +120,10 @@ contract GarageSale is
         require(tokens[msg.sender] == TokenType.ERC721, "unknown token");
         uint256 offer_ = offer;
         require(address(this).balance >= offer_, "insufficient funds");
-
-        inventory.push(Item(msg.sender, tokenId));
+        bool use256 = tokenId > type(uint96).max;
+        inventory.push(
+            Item(msg.sender, use256 ? 0 : uint96(tokenId), use256 ? tokenId : 0)
+        );
 
         (bool sent, ) = payable(from).call{value: offer_}("");
         require(sent, "ether transfer failed");
@@ -199,7 +202,10 @@ contract GarageSale is
         // add item to inventory only if it doesn't already exist
         bytes32 key = keccak256(abi.encodePacked(token, id));
         if (!exists[key]) {
-            inventory.push(Item(token, id));
+            bool use256 = id > type(uint96).max;
+            inventory.push(
+                Item(token, use256 ? 0 : uint96(id), use256 ? id : 0)
+            );
             exists[key] = true;
         }
         // emit
@@ -237,6 +243,7 @@ contract GarageSale is
             uint256 r = s % (avail - i);
             addrs[i] = inventory[r].token;
             ids[i] = inventory[r].id;
+            if (ids[i] == 0) ids[i] = inventory[r].id256; // read id256 if uint96 id unset
             // backfill removed item
             inventory[r] = inventory[avail - i - 1];
             if (total > avail) {
@@ -327,12 +334,13 @@ contract GarageSale is
             tokens_[i] = item.token;
             types[i] = uint16(type_);
             ids[i] = item.id;
+            if (ids[i] == 0) ids[i] = item.id256; // read id256 if uint96 id unset
             if (type_ == TokenType.ERC721) {
                 amounts[i] = 1;
             } else if (type_ == TokenType.ERC1155) {
                 amounts[i] = IERC1155(item.token).balanceOf(
                     address(this),
-                    item.id
+                    ids[i]
                 );
             }
             // else {} // pass if token no longer registered
